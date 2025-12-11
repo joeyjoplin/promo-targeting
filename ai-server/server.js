@@ -96,10 +96,10 @@ const RPC_RETRY_DELAY_MS = Number(process.env.RPC_RETRY_DELAY_MS || 1000);
 /**
  * Program ID must match the one defined in your Anchor program:
  *
- *   declare_id!("DzJHS4MoZsDLvucmBHUojdSDAXXVfw4xm64kgWrvvT8Y");
+ *   declare_id!("275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB");
  */
 const PROGRAM_ID_STRING =
-  process.env.PROGRAM_ID || "DzJHS4MoZsDLvucmBHUojdSDAXXVfw4xm64kgWrvvT8Y";
+  process.env.PROGRAM_ID || "275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB";
 const PROGRAM_ID = new PublicKey(PROGRAM_ID_STRING);
 
 // Default IDL location is inside ai-server/idl/promoTargeting.json
