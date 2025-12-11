@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 
 // Reuse the same base URL used by AICampaignAssistant
 const API_BASE_URL =
-  import.meta.env.VITE_AI_API_BASE_URL ?? "http://localhost:8787";
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787";
 
 export type CampaignAccount = {
   pubkey: string;

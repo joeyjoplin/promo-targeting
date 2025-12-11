@@ -95,12 +95,14 @@ function isCouponApplicable(
 const SHOPPER_CONTEXT_KEY = "promo-targeting:shopper-context";
 
 /**
- * Base URL for the AI server API.
- * Shared with the e-commerce frontend to talk to the Node server.
+ * Base URL for the backend API.
+ * Shared across the frontend to talk to the Node server.
  */
 const API_BASE =
-  import.meta.env.VITE_AI_SERVER_URL?.replace(/\/$/, "") ||
-  "http://localhost:8787";
+  (import.meta.env.VITE_API_BASE_URL || "http://localhost:8787").replace(
+    /\/$/,
+    ""
+  );
 
 interface ShopperContextSnapshot {
   productId: string | null;
@@ -1032,4 +1034,3 @@ const Ecommerce = () => {
 };
 
 export default Ecommerce;
-

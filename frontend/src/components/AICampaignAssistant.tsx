@@ -77,7 +77,7 @@ interface AICampaignAssistantProps {
 }
 
 const API_BASE_URL =
-  import.meta.env.VITE_AI_API_BASE_URL ?? "http://localhost:8787";
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787";
 
 /**
  * Helper to format lamports -> SOL in a human-friendly way.

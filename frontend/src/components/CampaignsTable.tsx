@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 
 const API_BASE_URL =
-  import.meta.env.VITE_AI_API_BASE_URL ?? "http://localhost:8787";
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787";
 
 export interface OnChainCampaign {
   address: string;
