@@ -102,26 +102,21 @@ const PROGRAM_ID_STRING =
   process.env.PROGRAM_ID || "DzJHS4MoZsDLvucmBHUojdSDAXXVfw4xm64kgWrvvT8Y";
 const PROGRAM_ID = new PublicKey(PROGRAM_ID_STRING);
 
+// Default IDL location is inside ai-server/idl/promoTargeting.json
+const DEFAULT_IDL_PATH = path.join(__dirname, "idl", "promoTargeting.json");
+
 /**
  * IDL path resolution:
  * - If PROMO_IDL_PATH is set in .env, we resolve it relative to this file.
- * - Otherwise, we fall back to a default location:
- *     ../target/idl/promoTargeting.json
+ * - Otherwise, we fall back to DEFAULT_IDL_PATH.
  *
- * Example .env for this server:
+ * Example .env override for local dev:
  *   PROMO_IDL_PATH=../target/idl/promoTargeting.json
  */
-const DEFAULT_IDL_PATH = path.join(
-  __dirname,
-  "..",
-  "target",
-  "idl",
-  "promoTargeting.json"
-);
-
 const IDL_PATH = process.env.PROMO_IDL_PATH
   ? path.resolve(__dirname, process.env.PROMO_IDL_PATH)
   : DEFAULT_IDL_PATH;
+
 
 let PROGRAM_IDL = null;
 let CODER = null;
