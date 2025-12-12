@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787";
+  import.meta.env.VITE_AI_API_BASE_URL ?? "http://localhost:8787";
 
 interface CampaignDetailsCardProps {
   selectedCampaign: OnChainCampaign | null;

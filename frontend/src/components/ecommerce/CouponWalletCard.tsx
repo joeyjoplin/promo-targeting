@@ -45,17 +45,15 @@ interface CouponState {
 }
 
 /**
- * Base URL for the backend API.
- * The AI server listens on http://localhost:8787 by default.
+ * Base URL for the AI server API.
+ * The AI server listens on http://localhost:8787.
  *
  * You can override this via:
- *   VITE_API_BASE_URL="http://localhost:8787"
+ *   VITE_AI_SERVER_URL="http://localhost:8787"
  */
 const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL || "http://localhost:8787").replace(
-    /\/$/,
-    ""
-  );
+  import.meta.env.VITE_AI_SERVER_URL?.replace(/\/$/, "") ||
+  "http://localhost:8787";
 
 export const CouponWalletCard = ({
   walletAddress,
@@ -431,3 +429,4 @@ export const CouponWalletCard = ({
     </Card>
   );
 };
+

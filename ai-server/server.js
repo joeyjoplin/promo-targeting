@@ -25,6 +25,7 @@ const {
   Transaction,
   TransactionInstruction,
   sendAndConfirmTransaction,
+  SYSVAR_RENT_PUBKEY,
 } = require("@solana/web3.js");
 const anchor = require("@coral-xyz/anchor");
 
@@ -85,6 +86,10 @@ const SOLANA_CLUSTER =
   process.env.SOLANA_CLUSTER ||
   (SOLANA_RPC_URL.includes("devnet") ? "devnet" : "mainnet-beta");
 console.log("[RPC] Using SOLANA_CLUSTER:", SOLANA_CLUSTER);
+
+const MIN_VAULT_RESERVE_LAMPORTS = Number(
+  process.env.MIN_VAULT_RESERVE_LAMPORTS ?? 5_000_000
+);
 
 /**
  * Retry / backoff parameters for RPC calls.
@@ -605,6 +610,67 @@ function buildArgsFromIdl(idlArgs, valuesMap) {
   return argsObj;
 }
 
+/**
+ * Resolve the platform treasury account to a valid, system-owned wallet.
+ * If the configured PLATFORM_TREASURY_ADDRESS is missing, invalid, or not a
+ * system account, we fall back to the merchant public key so transactions do
+ * not fail with rent errors.
+ *
+ * @param {Connection} connection
+ * @param {PublicKey} merchantPubkey
+ * @param {string} label
+ * @returns {Promise<PublicKey>}
+ */
+async function resolvePlatformTreasuryPubkey(
+  connection,
+  merchantPubkey,
+  label
+) {
+  if (!PLATFORM_TREASURY_ADDRESS) {
+    return merchantPubkey;
+  }
+
+  let candidate;
+  try {
+    candidate = new PublicKey(PLATFORM_TREASURY_ADDRESS);
+  } catch (e) {
+    console.warn(
+      `${label} Invalid PLATFORM_TREASURY_ADDRESS provided (${PLATFORM_TREASURY_ADDRESS}), falling back to merchant public key.`,
+      e?.message || String(e)
+    );
+    return merchantPubkey;
+  }
+
+  try {
+    const accountInfo = await rpcWithBackoff(
+      `getAccountInfo(platform_treasury:${candidate.toBase58()})`,
+      () => connection.getAccountInfo(candidate)
+    );
+
+    if (!accountInfo) {
+      console.warn(
+        `${label} PLATFORM_TREASURY_ADDRESS (${candidate.toBase58()}) not found on-chain. Falling back to merchant public key.`
+      );
+      return merchantPubkey;
+    }
+
+    if (!accountInfo.owner.equals(SystemProgram.programId)) {
+      console.warn(
+        `${label} PLATFORM_TREASURY_ADDRESS (${candidate.toBase58()}) is not system-owned (owner: ${accountInfo.owner.toBase58()}). Falling back to merchant public key.`
+      );
+      return merchantPubkey;
+    }
+
+    return candidate;
+  } catch (err) {
+    console.warn(
+      `${label} Failed to validate PLATFORM_TREASURY_ADDRESS (${PLATFORM_TREASURY_ADDRESS}). Falling back to merchant public key.`,
+      err?.message || String(err)
+    );
+    return merchantPubkey;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Helpers: funding / low-level instruction senders (no anchor.Program)
 // -----------------------------------------------------------------------------
@@ -722,6 +788,11 @@ async function ensureGlobalConfig(connection, adminKeypair) {
     },
     {
       pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
       isSigner: false,
       isWritable: false,
     },
@@ -866,6 +937,11 @@ async function sendCreateCampaignTx(connection, merchantKeypair, params) {
       isSigner: false,
       isWritable: false,
     },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
+      isSigner: false,
+      isWritable: false,
+    },
   ];
 
   const ix = new TransactionInstruction({
@@ -962,6 +1038,11 @@ async function sendMintCouponTx(connection, merchantKeypair, params) {
     },
     {
       pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
       isSigner: false,
       isWritable: false,
     },
@@ -1872,6 +1953,10 @@ app.post("/api/create-campaign", async (req, res) => {
       depositAmountLamportsNum = perCouponVaultRequirement || mintCostLamportsNum;
     }
 
+    if (MIN_VAULT_RESERVE_LAMPORTS > 0) {
+      depositAmountLamportsNum += MIN_VAULT_RESERVE_LAMPORTS;
+    }
+
     const depositAmount = new anchor.BN(depositAmountLamportsNum);
 
     const campaignId = new anchor.BN(nowSeconds);
@@ -2102,22 +2187,11 @@ app.post("/api/mint-coupon", async (req, res) => {
       PROGRAM_ID
     );
 
-    let platformTreasuryPubkey;
-    if (PLATFORM_TREASURY_ADDRESS) {
-      try {
-        platformTreasuryPubkey = new PublicKey(PLATFORM_TREASURY_ADDRESS);
-      } catch (e) {
-        console.warn(
-          "[mint-coupon] Invalid PLATFORM_TREASURY_ADDRESS, falling back to merchant public key:",
-          PLATFORM_TREASURY_ADDRESS,
-          "- reason:",
-          e.message || String(e)
-        );
-        platformTreasuryPubkey = merchant.publicKey;
-      }
-    } else {
-      platformTreasuryPubkey = merchant.publicKey;
-    }
+    const platformTreasuryPubkey = await resolvePlatformTreasuryPubkey(
+      connection,
+      merchant.publicKey,
+      "[mint-coupon]"
+    );
 
     console.log("[mint-coupon] Using PDAs and accounts:", {
       campaign: campaignPda.toBase58(),
@@ -2378,22 +2452,11 @@ app.post("/api/abandoned-cart-coupon", async (req, res) => {
       PROGRAM_ID
     );
 
-    let platformTreasuryPubkey;
-    if (PLATFORM_TREASURY_ADDRESS) {
-      try {
-        platformTreasuryPubkey = new PublicKey(PLATFORM_TREASURY_ADDRESS);
-      } catch (e) {
-        console.warn(
-          "[abandoned-cart-coupon] Invalid PLATFORM_TREASURY_ADDRESS, falling back to merchant public key:",
-          PLATFORM_TREASURY_ADDRESS,
-          "- reason:",
-          e.message || String(e)
-        );
-        platformTreasuryPubkey = merchant.publicKey;
-      }
-    } else {
-      platformTreasuryPubkey = merchant.publicKey;
-    }
+    const platformTreasuryPubkey = await resolvePlatformTreasuryPubkey(
+      connection,
+      merchant.publicKey,
+      "[abandoned-cart-coupon]"
+    );
 
     console.log("[abandoned-cart-coupon] Minting coupon with:", {
       campaign: campaignPda.toBase58(),
@@ -2678,25 +2741,12 @@ app.post("/api/redeem-coupon", async (req, res) => {
       PROGRAM_ID
     );
 
-    // ----- Resolve platform treasury (same logic used in /api/mint-coupon) -----
-    let platformTreasuryPubkey;
-    if (PLATFORM_TREASURY_ADDRESS) {
-      try {
-        platformTreasuryPubkey = new PublicKey(PLATFORM_TREASURY_ADDRESS);
-      } catch (e) {
-        console.warn(
-          "[redeem-coupon] Invalid PLATFORM_TREASURY_ADDRESS, falling back to merchant public key:",
-          PLATFORM_TREASURY_ADDRESS,
-          "- reason:",
-          e.message || String(e)
-        );
-        const merchant = loadMerchantKeypair();
-        platformTreasuryPubkey = merchant.publicKey;
-      }
-    } else {
-      const merchant = loadMerchantKeypair();
-      platformTreasuryPubkey = merchant.publicKey;
-    }
+    const merchant = loadMerchantKeypair();
+    const platformTreasuryPubkey = await resolvePlatformTreasuryPubkey(
+      connection,
+      merchant.publicKey,
+      "[redeem-coupon]"
+    );
 
     // ----- Build redeem_coupon instruction from IDL -----
     const redeemIxDef = findInstruction(["redeem", "coupon"]);
@@ -3404,24 +3454,11 @@ app.post("/api/solana-pay/tx-request", async (req, res) => {
         PROGRAM_ID
       );
 
-      let platformTreasuryPubkey;
-      if (PLATFORM_TREASURY_ADDRESS) {
-        try {
-          platformTreasuryPubkey = new PublicKey(
-            PLATFORM_TREASURY_ADDRESS
-          );
-        } catch (e) {
-          console.warn(
-            "[tx-request][POST] Invalid PLATFORM_TREASURY_ADDRESS, falling back to merchant public key:",
-            PLATFORM_TREASURY_ADDRESS,
-            "- reason:",
-            e.message || String(e)
-          );
-          platformTreasuryPubkey = merchant.publicKey;
-        }
-      } else {
-        platformTreasuryPubkey = merchant.publicKey;
-      }
+      const platformTreasuryPubkey = await resolvePlatformTreasuryPubkey(
+        connection,
+        merchant.publicKey,
+        "[tx-request][POST]"
+      );
 
       const redeemIxDef = findInstruction(["redeem", "coupon"]);
       if (!redeemIxDef) {
