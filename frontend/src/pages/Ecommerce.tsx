@@ -1,6 +1,7 @@
 // src/pages/Ecommerce.tsx
 import { useEffect, useState } from "react";
 import { Navigation } from "@/components/Navigation";
+import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { ProductCard } from "@/components/ecommerce/ProductCard";
 import { CartSummary } from "@/components/ecommerce/CartSummary";
 import { SolanaPayModal } from "@/components/ecommerce/SolanaPayModal";
@@ -99,8 +100,10 @@ const SHOPPER_CONTEXT_KEY = "promo-targeting:shopper-context";
  * Shared with the e-commerce frontend to talk to the Node server.
  */
 const API_BASE =
-  import.meta.env.VITE_AI_SERVER_URL?.replace(/\/$/, "") ||
-  "http://localhost:8787";
+  (import.meta.env.VITE_API_BASE_URL || "http://localhost:8787").replace(
+    /\/$/,
+    ""
+  );
 
 interface ShopperContextSnapshot {
   productId: string | null;
@@ -896,18 +899,7 @@ const Ecommerce = () => {
               </div>
             )}
 
-            <Button
-              size="sm"
-              variant={connected ? "outline" : "default"}
-              onClick={connected ? disconnectWallet : connectWallet}
-              disabled={connecting}
-            >
-              {connecting
-                ? "Connecting..."
-                : connected
-                ? "Disconnect Wallet"
-                : "Connect Wallet"}
-            </Button>
+            <WalletConnectButton />
           </div>
         </div>
 
@@ -1032,4 +1024,3 @@ const Ecommerce = () => {
 };
 
 export default Ecommerce;
-

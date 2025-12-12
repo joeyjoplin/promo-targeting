@@ -11,7 +11,7 @@ import { findProductByCode } from "@/data/products";
 import { toast } from "@/hooks/use-toast";
 
 const API_BASE_URL =
-  import.meta.env.VITE_AI_API_BASE_URL ?? "http://localhost:8787";
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787";
 const LAMPORTS_PER_SOL = 1_000_000_000;
 
 /**
@@ -525,10 +525,6 @@ const Marketplace = () => {
         {/* Hero Section */}
         <MarketplaceHero
           walletConnected={walletConnected}
-          connecting={connecting}
-          walletAddress={shortAddress}
-          onConnectWallet={connectWallet}
-          onDisconnectWallet={disconnectWallet}
           onViewWallet={() => setShowWalletModal(true)}
         />
 

@@ -91,6 +91,30 @@ const MIN_VAULT_RESERVE_LAMPORTS = Number(
   process.env.MIN_VAULT_RESERVE_LAMPORTS ?? 5_000_000
 );
 
+const clampBpsInput = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.min(10_000, parsed));
+};
+
+const DEFAULT_MAX_RESALE_BPS = clampBpsInput(
+  process.env.DEFAULT_MAX_RESALE_BPS ?? 1_000,
+  1_000
+);
+const DEFAULT_SERVICE_FEE_BPS = clampBpsInput(
+  process.env.DEFAULT_SERVICE_FEE_BPS ?? 1_000,
+  1_000
+);
+
+console.log(
+  "[CONFIG] Default max_resale_bps:",
+  DEFAULT_MAX_RESALE_BPS,
+  "default service_fee_bps:",
+  DEFAULT_SERVICE_FEE_BPS
+);
+
+const GLOBAL_CONFIG_ACCOUNT_DATA_LEN = 8 + 32 + 2 + 2;
+
 /**
  * Retry / backoff parameters for RPC calls.
  * These can be tuned via environment variables if needed.
@@ -104,7 +128,7 @@ const RPC_RETRY_DELAY_MS = Number(process.env.RPC_RETRY_DELAY_MS || 1000);
  *   declare_id!("275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB");
  */
 const PROGRAM_ID_STRING =
-  process.env.PROGRAM_ID || "275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB";
+  process.env.PROGRAM_ID || "41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr";
 const PROGRAM_ID = new PublicKey(PROGRAM_ID_STRING);
 
 // Default IDL location is inside ai-server/idl/promoTargeting.json
@@ -742,6 +766,22 @@ async function ensureGlobalConfig(connection, adminKeypair) {
       "[initialize_config] GlobalConfig already exists at",
       configPda.toBase58()
     );
+    if (info.data.length !== GLOBAL_CONFIG_ACCOUNT_DATA_LEN) {
+      console.log(
+        "[initialize_config] GlobalConfig has legacy size",
+        info.data.length,
+        "expected",
+        GLOBAL_CONFIG_ACCOUNT_DATA_LEN,
+        "- running upgrade_config to add service_fee_bps."
+      );
+      const legacy = decodeLegacyGlobalConfig(info.data);
+      await upgradeGlobalConfigAccount(
+        connection,
+        adminKeypair,
+        legacy.maxResaleBps ?? DEFAULT_MAX_RESALE_BPS,
+        DEFAULT_SERVICE_FEE_BPS
+      );
+    }
     return configPda;
   }
 
@@ -749,7 +789,8 @@ async function ensureGlobalConfig(connection, adminKeypair) {
     "[initialize_config] GlobalConfig not found. Initializing with demo parameters..."
   );
 
-  const maxResaleBps = 10_000; // 100% in basis points
+  const maxResaleBps = DEFAULT_MAX_RESALE_BPS;
+  const serviceFeeBps = DEFAULT_SERVICE_FEE_BPS;
 
   const initIx = findInstruction(["initialize", "config"]);
   if (!initIx) {
@@ -767,10 +808,12 @@ async function ensureGlobalConfig(connection, adminKeypair) {
     initIx.args.map((a) => a.name)
   );
 
-  const valuesMap = {};
-  for (const arg of initIx.args) {
-    valuesMap[arg.name] = maxResaleBps;
-  }
+  const valuesMap = {
+    max_resale_bps: maxResaleBps,
+    maxResaleBps: maxResaleBps,
+    service_fee_bps: serviceFeeBps,
+    serviceFeeBps: serviceFeeBps,
+  };
 
   const encodedArgs = buildArgsFromIdl(initIx.args, valuesMap);
   const data = CODER.instruction.encode(initIx.name, encodedArgs);
@@ -819,6 +862,169 @@ async function ensureGlobalConfig(connection, adminKeypair) {
   return configPda;
 }
 
+async function upgradeGlobalConfigAccount(
+  connection,
+  adminKeypair,
+  maxResaleBps,
+  serviceFeeBps
+) {
+  if (!CODER || !PROGRAM_IDL) {
+    throw new Error(
+      "IDL coder not initialized. Check PROMO_IDL_PATH and run `anchor build`."
+    );
+  }
+
+  const upgradeIx = findInstruction(["upgrade", "config"]);
+  if (!upgradeIx) {
+    throw new Error(
+      `Could not find upgrade_config-like instruction in IDL. Available instructions: ${
+        PROGRAM_IDL.instructions
+          ? PROGRAM_IDL.instructions.map((ix) => ix.name).join(", ")
+          : "none"
+      }`
+    );
+  }
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    PROGRAM_ID
+  );
+
+  console.log(
+    "[upgrade_config] Upgrading GlobalConfig PDA:",
+    configPda.toBase58()
+  );
+
+  const valuesMap = {
+    max_resale_bps: maxResaleBps,
+    maxResaleBps: maxResaleBps,
+    service_fee_bps: serviceFeeBps,
+    serviceFeeBps: serviceFeeBps,
+  };
+
+  const encodedArgs = buildArgsFromIdl(upgradeIx.args, valuesMap);
+  const data = CODER.instruction.encode(upgradeIx.name, encodedArgs);
+
+  const keys = [
+    {
+      pubkey: configPda,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: adminKeypair.publicKey,
+      isSigner: true,
+      isWritable: true,
+    },
+    {
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
+
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys,
+    data,
+  });
+
+  const tx = new Transaction().add(ix);
+  const signature = await sendAndConfirmTransaction(connection, tx, [
+    adminKeypair,
+  ]);
+
+  console.log("[upgrade_config] GlobalConfig upgraded. tx:", signature);
+  return signature;
+}
+
+async function fetchGlobalConfigAccount(connection) {
+  if (!CODER || !PROGRAM_IDL) {
+    throw new Error(
+      "IDL coder not initialized. Check PROMO_IDL_PATH and run `anchor build`."
+    );
+  }
+
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    PROGRAM_ID
+  );
+
+  const info = await rpcWithBackoff(
+    `getAccountInfo(config:${configPda.toBase58()})`,
+    () => connection.getAccountInfo(configPda)
+  );
+
+  if (!info) {
+    return null;
+  }
+
+  const configDef =
+    findAccount(["global", "config"]) || findAccount(["config"]);
+  if (!configDef) {
+    throw new Error(
+      `Could not find GlobalConfig account in IDL. Available accounts: ${
+        PROGRAM_IDL.accounts
+          ? PROGRAM_IDL.accounts.map((a) => a.name).join(", ")
+          : "none"
+      }`
+    );
+  }
+
+  let decoded = null;
+  try {
+    decoded = CODER.accounts.decode(configDef.name, info.data);
+  } catch (err) {
+    console.warn(
+      "[fetchGlobalConfigAccount] Failed to decode config with latest IDL. Trying legacy layout fallback.",
+      err?.message || String(err)
+    );
+    decoded = decodeLegacyGlobalConfig(info.data);
+  }
+
+  const maxResaleBps = getFirstNumeric(
+    decoded,
+    ["max_resale_bps", "maxResaleBps"],
+    DEFAULT_MAX_RESALE_BPS
+  );
+
+  const serviceFeeBps = getFirstNumeric(
+    decoded,
+    ["service_fee_bps", "serviceFeeBps"],
+    DEFAULT_SERVICE_FEE_BPS
+  );
+
+  return {
+    pubkey: configPda,
+    decoded,
+    maxResaleBps,
+    serviceFeeBps,
+  };
+}
+
+function decodeLegacyGlobalConfig(data) {
+  const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+  const discriminatorLen = 8;
+  const adminOffset = discriminatorLen;
+  const maxResaleOffset = adminOffset + 32;
+
+  if (buffer.length < maxResaleOffset + 2) {
+    throw new Error(
+      `Legacy GlobalConfig buffer too small (len=${buffer.length}). Cannot decode.`
+    );
+  }
+
+  const adminBytes = buffer.slice(adminOffset, adminOffset + 32);
+  const admin = new PublicKey(adminBytes);
+  const maxResaleBps = buffer.readUInt16LE(maxResaleOffset);
+
+  return {
+    admin,
+    maxResaleBps,
+    serviceFeeBps: DEFAULT_SERVICE_FEE_BPS,
+  };
+}
+
 /**
  * Send the create_campaign instruction using only BorshCoder + web3.js.
  */
@@ -835,7 +1041,6 @@ async function sendCreateCampaignTx(connection, merchantKeypair, params) {
     vaultPda,
     campaignId,
     discountBps,
-    serviceFeeBps,
     resaleBps,
     expirationTimestamp,
     totalCoupons,
@@ -871,9 +1076,6 @@ async function sendCreateCampaignTx(connection, merchantKeypair, params) {
 
     discount_bps: discountBps,
     discountBps: discountBps,
-
-    service_fee_bps: serviceFeeBps,
-    serviceFeeBps: serviceFeeBps,
 
     resale_bps: resaleBps,
     resaleBps: resaleBps,
@@ -1747,6 +1949,12 @@ app.post("/api/create-campaign", async (req, res) => {
     }
 
     const configPda = await ensureGlobalConfig(connection, merchant);
+    const configAccount = await fetchGlobalConfigAccount(connection);
+    if (!configAccount) {
+      throw new Error(
+        "GlobalConfig account not found after initialization. Cannot create campaign."
+      );
+    }
     const nowSeconds = Math.floor(Date.now() / 1000);
 
     const hasProposal = proposal && typeof proposal === "object";
@@ -1762,13 +1970,21 @@ app.post("/api/create-campaign", async (req, res) => {
       ? getFirstNumeric(proposal, ["discount_bps", "discountBps"], 2500)
       : 2500;
 
-    const serviceFeeBps = hasProposal
-      ? getFirstNumeric(proposal, ["service_fee_bps", "serviceFeeBps"], 500)
-      : 500;
+    const serviceFeeBps =
+      configAccount.serviceFeeBps ?? DEFAULT_SERVICE_FEE_BPS;
 
-    const resaleBps = hasProposal
+    let resaleBps = hasProposal
       ? getFirstNumeric(proposal, ["resale_bps", "resaleBps"], 5000)
       : 5000;
+    const maxResaleCap =
+      configAccount.maxResaleBps ?? DEFAULT_MAX_RESALE_BPS;
+    if (resaleBps > maxResaleCap) {
+      console.warn(
+        "[create-campaign] Requested resale_bps exceeds global cap. Clamping.",
+        { requested: resaleBps, maxAllowed: maxResaleCap }
+      );
+      resaleBps = maxResaleCap;
+    }
 
     let expirationSeconds = hasProposal
       ? getFirstNumeric(
@@ -2002,7 +2218,6 @@ app.post("/api/create-campaign", async (req, res) => {
       vaultPda,
       campaignId,
       discountBps,
-      serviceFeeBps,
       resaleBps,
       expirationTimestamp,
       totalCoupons,
@@ -2356,7 +2571,8 @@ app.post("/api/abandoned-cart-coupon", async (req, res) => {
         ? discountBps
         : 1000; // 10%
 
-    const serviceFeeBps = 500; // 5% protocol fee (demo)
+    const serviceFeeBps =
+      configAccount.serviceFeeBps ?? DEFAULT_SERVICE_FEE_BPS;
     const resaleBps = 0; // abandoned-cart coupons not meant for resale in this demo
 
     const totalCoupons = 1;
@@ -2420,7 +2636,6 @@ app.post("/api/abandoned-cart-coupon", async (req, res) => {
       vaultPda,
       campaignId,
       discountBps: finalDiscountBps,
-      serviceFeeBps,
       resaleBps,
       expirationTimestamp,
       totalCoupons,

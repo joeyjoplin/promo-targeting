@@ -122,7 +122,7 @@ describe("PromoTargeting", () => {
     await Promise.all(airdrops);
 
     const txSig = await program.methods
-      .initializeConfig(MAX_RESALE_BPS)
+      .initializeConfig(MAX_RESALE_BPS, SERVICE_FEE_BPS)
       .accounts({
         config: configPda,
         admin: merchant().publicKey,
@@ -143,6 +143,11 @@ describe("PromoTargeting", () => {
       configAccount.maxResaleBps,
       MAX_RESALE_BPS,
       "maxResaleBps mismatch in GlobalConfig"
+    );
+    assert.equal(
+      configAccount.serviceFeeBps,
+      SERVICE_FEE_BPS,
+      "serviceFeeBps mismatch in GlobalConfig"
     );
   });
 
@@ -175,7 +180,6 @@ describe("PromoTargeting", () => {
       .createCampaign(
         new anchor.BN(CAMPAIGN_ID),
         DISCOUNT_BPS,
-        SERVICE_FEE_BPS,
         RESALE_BPS,
         new anchor.BN(expirationTimestamp),
         TOTAL_COUPONS,
@@ -788,7 +792,6 @@ describe("PromoTargeting", () => {
       .createCampaign(
         new anchor.BN(TARGETED_CAMPAIGN_ID),
         DISCOUNT_BPS,
-        SERVICE_FEE_BPS,
         RESALE_BPS,
         new anchor.BN(expirationTimestamp),
         TARGETED_TOTAL_COUPONS,
@@ -986,7 +989,6 @@ describe("PromoTargeting", () => {
       .createCampaign(
         new anchor.BN(EXPIRED_CAMPAIGN_ID),
         DISCOUNT_BPS,
-        SERVICE_FEE_BPS,
         RESALE_BPS,
         new anchor.BN(expiredTimestamp),
         EXPIRED_TOTAL_COUPONS,
@@ -1113,6 +1115,4 @@ describe("PromoTargeting", () => {
     );
   });
 });
-
-
 

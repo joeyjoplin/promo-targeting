@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
+use std::io::Cursor;
 
-declare_id!("275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB");
+declare_id!("41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr");
 
 #[program]
 pub mod promoTargeting {
@@ -15,12 +16,85 @@ pub mod promoTargeting {
     pub fn initialize_config(
         ctx: Context<InitializeConfig>,
         max_resale_bps: u16,
+        service_fee_bps: u16,
     ) -> Result<()> {
         require!(max_resale_bps <= 10_000, CustomError::InvalidBps);
+        require!(service_fee_bps <= 10_000, CustomError::InvalidBps);
 
         let config = &mut ctx.accounts.config;
         config.admin = ctx.accounts.admin.key();
         config.max_resale_bps = max_resale_bps;
+        config.service_fee_bps = service_fee_bps;
+
+        Ok(())
+    }
+
+    /// Upgrade (or update) the global configuration.
+    ///
+    /// This instruction allows the admin to migrate legacy config accounts
+    /// that were created before `service_fee_bps` existed, as well as update
+    /// max_resale_bps / service_fee_bps in a single call.
+    pub fn upgrade_config(
+        ctx: Context<UpgradeConfig>,
+        max_resale_bps: u16,
+        service_fee_bps: u16,
+    ) -> Result<()> {
+        require!(max_resale_bps <= 10_000, CustomError::InvalidBps);
+        require!(service_fee_bps <= 10_000, CustomError::InvalidBps);
+
+        let config_info = &ctx.accounts.config;
+        let mut data = config_info.try_borrow_mut_data()?;
+
+        const DISCRIMINATOR_LEN: usize = 8;
+        const ADMIN_OFFSET: usize = DISCRIMINATOR_LEN;
+        const ADMIN_END: usize = ADMIN_OFFSET + 32;
+
+        require!(
+            data.len() >= ADMIN_END + 2,
+            CustomError::InvalidConfigAccount
+        );
+
+        let admin_bytes: [u8; 32] = data[ADMIN_OFFSET..ADMIN_END]
+            .try_into()
+            .map_err(|_| CustomError::InvalidConfigAccount)?;
+        let existing_admin = Pubkey::new_from_array(admin_bytes);
+
+        require_keys_eq!(existing_admin, ctx.accounts.admin.key(), CustomError::NotAdmin);
+
+        let expected_len = DISCRIMINATOR_LEN + GlobalConfig::SIZE;
+        if data.len() != expected_len {
+            let rent = Rent::get()?;
+            let min_balance = rent.minimum_balance(expected_len);
+            let current_balance = config_info.lamports();
+            if current_balance < min_balance {
+                let diff = min_balance
+                    .checked_sub(current_balance)
+                    .ok_or(CustomError::Overflow)?;
+                let transfer_accounts = system_program::Transfer {
+                    from: ctx.accounts.admin.to_account_info(),
+                    to: ctx.accounts.config.clone(),
+                };
+                let cpi_ctx =
+                    CpiContext::new(ctx.accounts.system_program.to_account_info(), transfer_accounts);
+                system_program::transfer(cpi_ctx, diff)?;
+            }
+
+            config_info.realloc(expected_len, false)?;
+            data = config_info.try_borrow_mut_data()?;
+        }
+
+        for byte in data[DISCRIMINATOR_LEN..].iter_mut() {
+            *byte = 0;
+        }
+
+        let updated = GlobalConfig {
+            admin: existing_admin,
+            max_resale_bps,
+            service_fee_bps,
+        };
+
+        let mut cursor = Cursor::new(&mut data[DISCRIMINATOR_LEN..]);
+        updated.try_serialize(&mut cursor)?;
 
         Ok(())
     }
@@ -31,7 +105,7 @@ pub mod promoTargeting {
     /// - The merchant deposits a budget into a dedicated vault.
     /// - This vault is used to:
     ///   * pay minting costs for each coupon (to the platform treasury)
-    ///   * pay service fees (a percentage over the discount) to the platform treasury
+    ///   * pay service fees (percentage over the discount defined in GlobalConfig) to the platform treasury
     /// - Each campaign also defines:
     ///   * a max discount value in lamports (max_discount_lamports)
     ///   * a resale_bps (capped by GlobalConfig.max_resale_bps) that defines
@@ -48,7 +122,6 @@ pub mod promoTargeting {
         ctx: Context<CreateCampaign>,
         campaign_id: u64,
         discount_bps: u16,
-        service_fee_bps: u16,
         resale_bps: u16,
         expiration_timestamp: i64,
         total_coupons: u32,
@@ -68,7 +141,6 @@ pub mod promoTargeting {
 
         // Basic validation for inputs
         require!(discount_bps <= 10_000, CustomError::InvalidBps);
-        require!(service_fee_bps <= 10_000, CustomError::InvalidBps);
         require!(resale_bps <= 10_000, CustomError::InvalidBps);
         require!(total_coupons > 0, CustomError::InvalidTotalCoupons);
         require!(mint_cost_lamports > 0, CustomError::InvalidMintCost);
@@ -99,7 +171,7 @@ pub mod promoTargeting {
         campaign.merchant = merchant.key();
         campaign.campaign_id = campaign_id;
         campaign.discount_bps = discount_bps;
-        campaign.service_fee_bps = service_fee_bps;
+        campaign.service_fee_bps = config.service_fee_bps;
         campaign.resale_bps = resale_bps;
         campaign.expiration_timestamp = expiration_timestamp;
         campaign.total_coupons = total_coupons;
@@ -586,6 +658,22 @@ pub struct InitializeConfig<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpgradeConfig<'info> {
+    #[account(
+        mut,
+        seeds = [b"config"],
+        bump
+    )]
+    /// CHECK: Legacy configs may not match the latest struct. We verify admin and resize manually.
+    pub config: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 #[instruction(campaign_id: u64)]
 pub struct CreateCampaign<'info> {
     /// Global config – defines policy for campaigns (including max_resale_bps).
@@ -870,10 +958,11 @@ pub struct CheckTreasuryBalance<'info> {
 pub struct GlobalConfig {
     pub admin: Pubkey,       // 32 bytes - who is allowed to update config / call admin helpers
     pub max_resale_bps: u16, // 2 bytes  - maximum resale_bps allowed per campaign
+    pub service_fee_bps: u16, // 2 bytes  - global protocol fee applied to all campaigns
 }
 
 impl GlobalConfig {
-    pub const SIZE: usize = 32 + 2;
+    pub const SIZE: usize = 32 + 2 + 2;
 }
 
 /// Campaign account: stores all campaign parameters and summary stats.
@@ -1038,6 +1127,10 @@ pub enum CustomError {
     NotMerchant,
     #[msg("Campaign is not expired yet")]
     CampaignNotExpired,
+    #[msg("Signer is not the admin")]
+    NotAdmin,
+    #[msg("Invalid config account data")]
+    InvalidConfigAccount,
     #[msg("Coupon is currently listed")]
     CouponListed,
     #[msg("Coupon is already listed")]
@@ -1087,4 +1180,3 @@ fn transfer_lamports<'info>(
 
     Ok(())
 }
-

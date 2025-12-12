@@ -1,16 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
+import { WalletConnectButton } from "@/components/WalletConnectButton";
 
 interface MarketplaceHeroProps {
   walletConnected: boolean;
-  onConnectWallet: () => void;
   onViewWallet: () => void;
 }
 
 export const MarketplaceHero = ({
   walletConnected,
-  onConnectWallet,
   onViewWallet,
 }: MarketplaceHeroProps) => {
   return (
@@ -44,16 +43,10 @@ export const MarketplaceHero = ({
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            {!walletConnected ? (
-              <Button
-                size="lg"
-                onClick={onConnectWallet}
-                className="h-12 px-8 text-base font-medium"
-              >
-                <Wallet className="mr-2 h-5 w-5" />
-                Connect Wallet
-              </Button>
-            ) : (
+            {!walletConnected && (
+              <WalletConnectButton />
+            )}
+            {walletConnected && (
               <Button
                 size="lg"
                 variant="outline"

@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/promoTargeting.json`.
  */
 export type PromoTargeting = {
-  "address": "275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB",
+  "address": "41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr",
   "metadata": {
     "name": "promoTargeting",
     "version": "0.1.0",
@@ -202,7 +202,7 @@ export type PromoTargeting = {
         "- The merchant deposits a budget into a dedicated vault.",
         "- This vault is used to:",
         "* pay minting costs for each coupon (to the platform treasury)",
-        "* pay service fees (a percentage over the discount) to the platform treasury",
+        "* pay service fees (percentage over the discount defined in GlobalConfig) to the platform treasury",
         "- Each campaign also defines:",
         "* a max discount value in lamports (max_discount_lamports)",
         "* a resale_bps (capped by GlobalConfig.max_resale_bps) that defines",
@@ -325,10 +325,6 @@ export type PromoTargeting = {
         },
         {
           "name": "discountBps",
-          "type": "u16"
-        },
-        {
-          "name": "serviceFeeBps",
           "type": "u16"
         },
         {
@@ -472,6 +468,10 @@ export type PromoTargeting = {
       "args": [
         {
           "name": "maxResaleBps",
+          "type": "u16"
+        },
+        {
+          "name": "serviceFeeBps",
           "type": "u16"
         }
       ]
@@ -818,6 +818,66 @@ export type PromoTargeting = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "upgradeConfig",
+      "docs": [
+        "Upgrade (or update) the global configuration.",
+        "",
+        "This instruction allows the admin to migrate legacy config accounts",
+        "that were created before `service_fee_bps` existed, as well as update",
+        "max_resale_bps / service_fee_bps in a single call."
+      ],
+      "discriminator": [
+        129,
+        185,
+        25,
+        221,
+        96,
+        63,
+        251,
+        97
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "maxResaleBps",
+          "type": "u16"
+        },
+        {
+          "name": "serviceFeeBps",
+          "type": "u16"
+        }
+      ]
     }
   ],
   "accounts": [
@@ -985,41 +1045,51 @@ export type PromoTargeting = {
     },
     {
       "code": 6016,
+      "name": "notAdmin",
+      "msg": "Signer is not the admin"
+    },
+    {
+      "code": 6017,
+      "name": "invalidConfigAccount",
+      "msg": "Invalid config account data"
+    },
+    {
+      "code": 6018,
       "name": "couponListed",
       "msg": "Coupon is currently listed"
     },
     {
-      "code": 6017,
+      "code": 6019,
       "name": "couponAlreadyListed",
       "msg": "Coupon is already listed"
     },
     {
-      "code": 6018,
+      "code": 6020,
       "name": "couponNotListed",
       "msg": "Coupon is not listed"
     },
     {
-      "code": 6019,
+      "code": 6021,
       "name": "invalidResalePrice",
       "msg": "Invalid resale price"
     },
     {
-      "code": 6020,
+      "code": 6022,
       "name": "invalidBuyer",
       "msg": "Invalid buyer for this coupon"
     },
     {
-      "code": 6021,
+      "code": 6023,
       "name": "targetWalletRequired",
       "msg": "Target wallet is required for this campaign type"
     },
     {
-      "code": 6022,
+      "code": 6024,
       "name": "notEligibleForCampaign",
       "msg": "User is not eligible for this campaign"
     },
     {
-      "code": 6023,
+      "code": 6025,
       "name": "invalidProductForCoupon",
       "msg": "Invalid product for this coupon"
     }
@@ -1209,6 +1279,10 @@ export type PromoTargeting = {
           },
           {
             "name": "maxResaleBps",
+            "type": "u16"
+          },
+          {
+            "name": "serviceFeeBps",
             "type": "u16"
           }
         ]
