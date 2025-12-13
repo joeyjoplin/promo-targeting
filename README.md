@@ -1,6 +1,14 @@
-# PromOps Protocol – PromOps MVP
+# PromOps Protocol – PromOps
 
 PromOps is an open on-chain marketing protocol designed to maximize ROI for loyalty, cashback, survey, and promotional campaigns. It combines Anchor smart contracts on Solana, an AI/automation server, and showcase frontends (dashboard + e-commerce) to enable targeted campaigns, native analytics, and new experiences like a coupon marketplace and Solana Pay flows.
+
+## Links
+
+Frontend: https://promo-targeting.vercel.app/ </br>
+Server: https://promo-targeting.onrender.com
+
+## ProgramID
+41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr
 
 ## Business Logic
 
