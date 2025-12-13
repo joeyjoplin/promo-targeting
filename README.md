@@ -161,3 +161,7 @@ anchor test           # validates program instructions
 6. Extend to other chains (Base, Stellar) and add zero-knowledge privacy.  
 
 PromOps is open source—contributions and feedback are welcome to expand the protocol, improve UX, and increase the economic impact of on-chain promotions.
+
+## License
+
+This project is released under the MIT License. See `LICENSE` for details.
