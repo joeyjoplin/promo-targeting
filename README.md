@@ -73,7 +73,7 @@ Use `solana config set --url https://api.devnet.solana.com` (or your private RPC
    ```env
    PORT=8787
    SOLANA_RPC_URL=https://api.devnet.solana.com
-   PROGRAM_ID=275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB
+   PROGRAM_ID=41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr
    PROMO_IDL_PATH=../target/idl/promoTargeting.json
    PLATFORM_TREASURY_ADDRESS=<platform public key>
    OPENAI_API_KEY=<your key>
