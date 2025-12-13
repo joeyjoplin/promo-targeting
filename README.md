@@ -141,7 +141,6 @@ anchor test           # validates program instructions
 - **Automation/AI:** MCP server + agent to create campaigns, recommend segments, run price research, and personalize offers.  
 - **E-commerce:** Shopify and other platform integrations for automatic cart ingestion and campaign triggers.  
 - **On-chain analytics:** datasets feed recommendation systems, upsell, and advertising with zero PII leakage.  
-- **Governance:** DAO structure, incentives, zero-knowledge privacy, and multi-chain expansion (Base, Stellar, etc.).  
 - **Operations:** enhanced economic logic, multi-currency support, automated workflows, and real-time ROI monitoring.
 
 ## Usage Guidelines
@@ -160,7 +159,5 @@ anchor test           # validates program instructions
 4. Automate operations: recommendations (upsell), surveys, ads, personalization.  
 5. Explore Solana Blinks for interactive ads and surveys.  
 6. Extend to other chains (Base, Stellar) and add zero-knowledge privacy.  
-7. Formalize DAO governance and compensation.  
-8. Research 0x402-style scenarios (recurring/seasonal purchases, e.g., back-to-school bundles).  
 
 PromOps is open source—contributions and feedback are welcome to expand the protocol, improve UX, and increase the economic impact of on-chain promotions.
