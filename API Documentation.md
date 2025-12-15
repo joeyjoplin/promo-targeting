@@ -209,7 +209,7 @@ Creates a payment session for Solana Pay (either transfer or transaction request
   "payerWallet": "Customer wallet (optional)",
   "orderItems": [ { "productId": "1", "quantity": 2 } ],
   "couponAddress": "Coupon PDA",
-  "mode": "transaction-request" // or "transfer-request"
+  "mode": "transaction-request" 
 }
 ```
 
