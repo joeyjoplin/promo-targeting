@@ -145,11 +145,51 @@ anchor test           # validates program instructions
 
 ## Integrations & Future Work
 
-- **New use cases:** coupon marketplace (MVP), targeted airdrops, loyalty with multiple currencies, recurring or seasonal campaigns (e.g., back-to-school), surveys/incentives via Solana Blinks.  
-- **Automation/AI:** MCP server + agent to create campaigns, recommend segments, run price research, and personalize offers.  
-- **E-commerce:** Shopify and other platform integrations for automatic cart ingestion and campaign triggers.  
-- **On-chain analytics:** datasets feed recommendation systems, upsell, and advertising with zero PII leakage.  
-- **Operations:** enhanced economic logic, multi-currency support, automated workflows, and real-time ROI monitoring.
+Hybrid payments (Solana Pay + x402):
+
+Solana Pay remains the human-facing checkout layer (QR codes, links, transaction requests) for purchases, cashback, and loyalty flows.
+
+x402 (HTTP 402 – Payment Required) is introduced as a protocol-level payment standard for monetizing PromOps APIs, AI services, and agent-to-agent interactions (pay-per-call, pay-per-decision).
+
+Rules Engine for targeting & risk control:
+
+Coupon and cashback logic evolves into a full rules engine: expiration windows, cooldowns, minimum spend, product/category constraints, per-wallet limits, and budget pacing.
+
+Built-in anti-abuse and anti-farming logic ensures campaigns optimize ROI instead of leaking value.
+
+Attribution & performance proofs:
+
+On-chain attribution links coupons, payments, redemptions, and campaign outcomes.
+
+This enables verifiable KPIs such as uplift, redeem rate, cost per conversion, and campaign ROI—unlocking performance-based pricing models.
+
+Dynamic discounts & cashback:
+
+Discount values can adapt in real time based on wallet segment, estimated LTV, purchase context, inventory, or campaign phase.
+
+Supports algorithmic marketing operations instead of static promotions.
+
+Secondary coupon market (economically sound):
+
+Coupons remain tradable assets, but resale prices are capped by the maximum economic benefit they can generate (e.g., a 10% discount on a 100-unit product cannot be resold above 10).
+
+Prevents speculative distortion while preserving liquidity and price discovery.
+
+Paid APIs & Targeting-as-a-Service:
+
+PromOps exposes paid endpoints such as wallet scoring, offer recommendation, fraud checks, and campaign optimization.
+
+These APIs are monetized via x402, enabling automated payments from bots, AI agents, and backend services without human interaction.
+
+Composable Solana Pay transaction requests:
+
+Advanced transaction requests allow composing payments with multiple instructions (pay + mint coupon + register attribution) in a single user approval.
+
+Enables richer checkout experiences without increasing UX friction.
+
+Privacy-first analytics:
+
+All analytics remain public-key–based, avoiding PII while still enabling segmentation, insights, and AI-driven recommendations.
 
 ## Usage Guidelines
 
@@ -161,12 +201,49 @@ anchor test           # validates program instructions
 
 ## Suggested Next Steps
 
-1. Publish the MCP server and AI agent to automate campaign creation/optimization.  
-2. Evolve the program for multi-currency logic and broader marketing scenarios.  
-3. Integrate Shopify/other e-commerce platforms for real cart ingestion.  
-4. Automate operations: recommendations (upsell), surveys, ads, personalization.  
-5. Explore Solana Blinks for interactive ads and surveys.  
-6. Extend to other chains (Base, Stellar) and add zero-knowledge privacy.  
+Stabilize the on-chain core
+
+Finalize campaign, coupon, redemption, and marketplace instructions.
+
+Add comprehensive happy/unhappy path tests and emit structured events for analytics and attribution.
+
+Implement the Rules Engine layer
+
+Encode constraints (time, spend, usage, categories, pacing) and anti-abuse logic directly into the protocol flow.
+
+Ensure vault balances, service fees, and redemption caps are always enforced on-chain.
+
+Complete the Solana Pay purchase loop
+
+Use transfer requests and transaction requests with unique references to fully link purchases to coupon redemption and attribution.
+
+Harden payment listeners and reconciliation logic.
+
+Introduce x402-powered APIs
+
+Add x402 endpoints for campaign intelligence (recommend-offer, wallet scoring, fraud checks).
+
+Enable pay-per-call monetization for AI agents, backends, and partners.
+
+Build attribution & ROI dashboards
+
+Index on-chain events to power dashboards that prove campaign performance.
+
+Use these metrics to experiment with performance-based pricing for merchants.
+
+Expand integrations
+
+Shopify and other e-commerce platforms for real cart ingestion and automated triggers.
+
+Solana Blinks for interactive ads, surveys, and incentive flows.
+
+Protocol hardening & expansion
+
+Multi-currency campaigns and settlement logic.
+
+Cross-chain extensions (e.g., Base, Stellar) while keeping PromOps as the neutral coordination layer.
+
+Explore privacy-preserving techniques (e.g., ZK-based segmentation) without breaking composability.
 
 PromOps is open source—contributions and feedback are welcome to expand the protocol, improve UX, and increase the economic impact of on-chain promotions.
 
