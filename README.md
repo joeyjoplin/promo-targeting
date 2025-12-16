@@ -160,20 +160,20 @@ anchor test           # validates program instructions
 ## Integrations & Future Work
 
 **Hybrid payments (Solana Pay + x402):** Solana Pay remains the human-facing checkout layer (QR codes, links, transaction requests) for purchases, cashback, and loyalty flows.
-x402 (HTTP 402 – Payment Required) is introduced as a protocol-level payment standard for monetizing PromOps APIs, AI services, and agent-to-agent interactions (pay-per-call, pay-per-decision).</br>
+x402 (HTTP 402 – Payment Required) is introduced as a protocol-level payment standard for monetizing PromOps APIs, AI services, and agent-to-agent interactions (pay-per-call, pay-per-decision).</br></br>
 **Rules Engine for targeting & risk control:** Coupon and cashback logic evolves into a full rules engine: expiration windows, cooldowns, minimum spend, product/category constraints, per-wallet limits, and budget pacing.
-Built-in anti-abuse and anti-farming logic ensures campaigns optimize ROI instead of leaking value.</br>
+Built-in anti-abuse and anti-farming logic ensures campaigns optimize ROI instead of leaking value.</br></br>
 **Attribution & performance proofs:** On-chain attribution links coupons, payments, redemptions, and campaign outcomes.
-This enables verifiable KPIs such as uplift, redeem rate, cost per conversion, and campaign ROI—unlocking performance-based pricing models.</br>
+This enables verifiable KPIs such as uplift, redeem rate, cost per conversion, and campaign ROI—unlocking performance-based pricing models.</br></br>
 **Dynamic discounts & cashback:** Discount values can adapt in real time based on wallet segment, estimated LTV, purchase context, inventory, or campaign phase.
-Supports algorithmic marketing operations instead of static promotions.</br>
+Supports algorithmic marketing operations instead of static promotions.</br></br>
 **Secondary coupon market (economically sound):** Coupons remain tradable assets, but resale prices are capped by the maximum economic benefit they can generate (e.g., a 10% discount on a 100-unit product cannot be resold above 10).
-Prevents speculative distortion while preserving liquidity and price discovery.</br>
+Prevents speculative distortion while preserving liquidity and price discovery.</br></br>
 **Paid APIs & Targeting-as-a-Service:** PromOps exposes paid endpoints such as wallet scoring, offer recommendation, fraud checks, and campaign optimization.
-These APIs are monetized via x402, enabling automated payments from bots, AI agents, and backend services without human interaction.</br>
+These APIs are monetized via x402, enabling automated payments from bots, AI agents, and backend services without human interaction.</br></br>
 **Composable Solana Pay transaction requests:** Advanced transaction requests allow composing payments with multiple instructions (pay + mint coupon + register attribution) in a single user approval.
-Enables richer checkout experiences without increasing UX friction.</br>
-**Privacy-first analytics:** All analytics remain public-key–based, avoiding PII while still enabling segmentation, insights, and AI-driven recommendations.</br>
+Enables richer checkout experiences without increasing UX friction.</br></br>
+**Privacy-first analytics:** All analytics remain public-key–based, avoiding PII while still enabling segmentation, insights, and AI-driven recommendations.</br></br>
 
 ## Usage Guidelines
 
