@@ -18,7 +18,12 @@ You can find the corresponding Public Key printed in the server console logs.
 
 3. Cart Abandonment Feature: When a customer adds a product to the cart but leaves without completing the purchase, an automatic cart abandonment campaign is triggered after <b>60s</b>.
 
-4. The secondary marketplace is still under development.
+4. From the Dashboard, you can mint a discount coupon for any wallet when the campaign is not target-wallet–restricted.
+For target-wallet campaigns, the NFT coupon can only be minted to the currently connected wallet.
+
+To mint a coupon, simply click on a campaign row. The Mint Card option will be displayed.
+
+6. The secondary marketplace is still under development.
 The NFT coupon purchase button and its economic logic will be improved in upcoming releases.
 
 ## ProgramID
