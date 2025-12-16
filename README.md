@@ -5,7 +5,21 @@ PromOps is an open on-chain marketing protocol designed to maximize ROI for loya
 ## Links
 
 Frontend: https://promo-targeting.vercel.app/ </br>
-Server: https://promo-targeting.onrender.com
+Server: https://promo-targeting.onrender.com </br>
+
+### Getting Started (Demo Flow) 
+1. Open the E-Commerce menu and connect your crypto wallet.
+
+2. If the Merchant account runs out of funds, top it up using a faucet with the following Public Key:
+```HrxMNSsZusJTkmXBpferHbps6BqL1eVBVYnKfqiGzWR9```
+
+When running the server locally, a Merchant account is automatically generated.
+You can find the corresponding Public Key printed in the server console logs.
+
+3. Cart Abandonment Feature: When a customer adds a product to the cart but leaves without completing the purchase, an automatic cart abandonment campaign is triggered after <b>60s</b>.
+
+4. The secondary marketplace is still under development.
+The NFT coupon purchase button and its economic logic will be improved in upcoming releases.
 
 ## ProgramID
 41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr
