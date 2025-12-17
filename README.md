@@ -26,6 +26,8 @@ To mint a coupon, simply click on a campaign row. The Mint Card option will be d
 6. The secondary marketplace is still under development.
 The NFT coupon purchase button and its economic logic will be improved in upcoming releases.
 
+7. We recommend using the Solflare wallet for payments via Solana Pay. Currently, there is a known issue with Phantom that prevents payments from being completed
+
 ## ProgramID
 41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr
 
