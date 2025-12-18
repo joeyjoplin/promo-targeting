@@ -27,6 +27,10 @@ To mint a coupon, simply click on a campaign row. The Mint Card option will be d
 The NFT coupon purchase button and its economic logic will be improved in upcoming releases.
 
 7. We recommend using the Solflare wallet for payments via Solana Pay. Currently, there is a known issue with Phantom that prevents payments from being completed
+  
+8. Example AI prompts for Campaigns creation:
+- Targeted wallet:  Create campaign for one day holiday sale. One Coupon. Target wallet. 50% off product 1. Ends at Dec,14
+- Non target wallet (Marketplace airdrop): Create campaign for Happy Saturday. 50 Coupons. All users. No targeted wallet. 50% off product 2. Ends at Dec,15
 
 ## ProgramID
 41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr
