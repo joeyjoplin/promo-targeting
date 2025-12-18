@@ -42,6 +42,7 @@ export interface CouponSummary {
   product_code: number;
 
   is_used: boolean;
+  is_listed?: boolean;
 }
 
 /**
@@ -819,8 +820,13 @@ const Ecommerce = () => {
         ? couponsData.coupons
         : [];
 
+      const availableCoupons = coupons.filter(
+        (c) => !c.is_used && !c.is_listed
+      );
+
       const newlyMinted =
-        coupons.find((c) => c.address === mintedCouponAddress) || null;
+        availableCoupons.find((c) => c.address === mintedCouponAddress) ||
+        null;
 
       if (!newlyMinted) {
         console.warn(
@@ -828,9 +834,8 @@ const Ecommerce = () => {
         );
 
         const fallbackCoupon =
-          coupons.find(
+          availableCoupons.find(
             (c) =>
-              !c.is_used &&
               c.discount_bps === discountBps &&
               c.product_code === productCode
           ) || null;

@@ -26,6 +26,7 @@ export interface CouponApiItem {
   product_code?: number;
   // Coupon flags
   is_used?: boolean;
+  is_listed?: boolean;
 }
 
 interface CouponWalletCardProps {
@@ -194,6 +195,7 @@ export const CouponWalletCard = ({
       category_code: coupon.category_code ?? 0,
       product_code: coupon.product_code ?? 0,
       is_used: !!coupon.is_used,
+      is_listed: !!coupon.is_listed,
     };
   };
 
@@ -213,13 +215,15 @@ export const CouponWalletCard = ({
       coupon.expiration_timestamp < nowSeconds;
 
     const isUsed = !!coupon.is_used;
+    const isListed = !!coupon.is_listed;
 
-    if (isUsed || isExpired) {
+    if (isUsed || isExpired || isListed) {
       console.log(
-        "[CouponWalletCard] Ignoring click on disabled coupon (used or expired).",
+        "[CouponWalletCard] Ignoring click on disabled coupon (used, listed, or expired).",
         {
           address: coupon.address,
           isUsed,
+          isListed,
           isExpired,
         }
       );
@@ -286,13 +290,14 @@ export const CouponWalletCard = ({
 
     // Only show coupons that are still available (not used and not expired)
     const availableCoupons = coupons.filter((coupon) => {
-      const isUsed = !!coupon.is_used;
-      const isExpired =
+    const isUsed = !!coupon.is_used;
+    const isListed = !!coupon.is_listed;
+    const isExpired =
         !!coupon.expiration_timestamp &&
         coupon.expiration_timestamp > 0 &&
         coupon.expiration_timestamp < nowSeconds;
 
-      return !isUsed && !isExpired;
+      return !isUsed && !isExpired && !isListed;
     });
 
     if (availableCoupons.length === 0) {
@@ -305,7 +310,7 @@ export const CouponWalletCard = ({
     }
 
     return (
-      <div className="space-y-3 max-h-44 overflow-y-auto pr-1">
+      <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
         {availableCoupons.map((coupon) => {
           const discountPercent = coupon.discount_bps
             ? coupon.discount_bps / 100

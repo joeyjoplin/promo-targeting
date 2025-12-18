@@ -25,7 +25,8 @@ export interface WalletOwnedToken {
   label?: "New" | "Trending" | "Ending Soon";
   image?: string;
   productPrice?: number;
-  maxDiscountValueSol?: number;
+  maxResaleValueSol?: number;
+  resaleBps?: number;
   status: "valid" | "expired";
   expirationDate: string;
   couponAddress?: string;
@@ -41,11 +42,17 @@ const formatSolValue = (value: number) =>
 const deriveMaxListingPrice = (
   token: WalletOwnedToken
 ): number | null => {
-  if (token.maxDiscountValueSol && token.maxDiscountValueSol > 0) {
-    return token.maxDiscountValueSol;
+  if (token.maxResaleValueSol && token.maxResaleValueSol > 0) {
+    return token.maxResaleValueSol;
   }
   if (token.productPrice && token.discount) {
-    return token.productPrice * (token.discount / 100);
+    const resaleFraction =
+      token.resaleBps && token.resaleBps > 0
+        ? token.resaleBps / 10_000
+        : 0;
+    if (resaleFraction > 0) {
+      return token.productPrice * (token.discount / 100) * resaleFraction;
+    }
   }
   return null;
 };
@@ -134,7 +141,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       priceNumber > maxListingPrice + 1e-9
     ) {
       setListingError(
-        `Price cannot exceed ${formatSolValue(maxListingPrice)} SOL.`
+        `Price cannot exceed ${formatSolValue(
+          maxListingPrice
+        )} SOL (resale cap).`
       );
       return;
     }
@@ -218,7 +227,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           )}
 
           {walletConnected && hasTokens && (
-            <ScrollArea className="mt-2 max-h-80 pr-2">
+            <ScrollArea className="mt-2 h-80 pr-2">
               <div className="flex flex-col gap-3 pb-2">
                 {ownedTokens.map((token) => {
                   const tokenKey = getTokenKey(token);

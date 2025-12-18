@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { PromoTargeting as PromoTargetingIdl } from "../target/types/promoTargeting";
+import { PromoTargeting as PromoTargetingIdl } from "../target/types/promo_targeting";
 import { assert } from "chai";
 import { PublicKey, SystemProgram, Keypair } from "@solana/web3.js";
 
@@ -25,7 +25,7 @@ describe("PromoTargeting", () => {
   const CAMPAIGN_NAME = "Launch Campaign";
   const DISCOUNT_BPS = 2000; // 20%
   const SERVICE_FEE_BPS = 500; // 5% over discount
-  const RESALE_BPS = 1000; // 10% of max discount value (secondary price cap)
+  const RESALE_BPS = 1000; // 10% of discount value (secondary price cap)
   const MAX_RESALE_BPS = 1000; // global cap set by admin
   const TOTAL_COUPONS = 5;
 
@@ -89,7 +89,7 @@ describe("PromoTargeting", () => {
 
   it("Smoke Test - program loaded and ID matches", async () => {
     // Update this to your current deployed program ID if you want strict matching.
-    const expectedProgramId = "275CL3mEoiKubGcPic1C488aHVqPGcM6gesJADidsoNB";
+    const expectedProgramId = "41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr";
 
     if (program.programId.toBase58() !== expectedProgramId) {
       console.warn(
@@ -619,8 +619,16 @@ describe("PromoTargeting", () => {
       .rpc();
     console.log("Mint fourth coupon tx:", txMint);
 
-    // Try to list above max allowed ( > max_discount_lamports )
-    const tooHighPrice = MAX_DISCOUNT_LAMPORTS + 1;
+    const campaignAccount = await program.account.campaign.fetch(campaignPda);
+    const resaleCapLamports = Math.floor(
+      (Number(campaignAccount.maxDiscountLamports) *
+        campaignAccount.resaleBps) /
+        10_000
+    );
+    const tooHighPrice =
+      resaleCapLamports > 0
+        ? resaleCapLamports + 1
+        : Number(campaignAccount.maxDiscountLamports) + 1;
     let failed = false;
     try {
       await program.methods
@@ -642,7 +650,7 @@ describe("PromoTargeting", () => {
 
     assert.isTrue(
       failed,
-      "Listing should fail when sale price is above max discount cap"
+      "Listing should fail when sale price is above resale cap"
     );
   });
 
@@ -673,11 +681,11 @@ describe("PromoTargeting", () => {
 
     const campaignAccount = await program.account.campaign.fetch(campaignPda);
 
-    // Secondary price cap: max_discount * resale_bps / 10_000
-    const expectedPrice =
+    const expectedPrice = Math.floor(
       (Number(campaignAccount.maxDiscountLamports) *
         campaignAccount.resaleBps) /
-      10_000;
+        10_000
+    );
 
     const txList = await program.methods
       .listCouponForSale(new anchor.BN(expectedPrice))
@@ -1115,4 +1123,3 @@ describe("PromoTargeting", () => {
     );
   });
 });
-

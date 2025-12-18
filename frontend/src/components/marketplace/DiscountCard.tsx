@@ -3,18 +3,15 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { DiscountToken } from "@/pages/Marketplace";
 import { Sparkles } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
 
 interface DiscountCardProps {
   token: DiscountToken;
   onClaim: (token: DiscountToken) => void;
-  walletConnected: boolean;
 }
 
 export const DiscountCard = ({
   token,
   onClaim,
-  walletConnected,
 }: DiscountCardProps) => {
   const totalSupply = token.totalSupply || 0;
   const supplyPercentage =
@@ -33,14 +30,6 @@ export const DiscountCard = ({
       default:
         return "";
     }
-  };
-
-  const handleClaim = () => {
-    onClaim(token);
-    toast({
-      title: "Token claimed!",
-      description: `${token.title} has been added to your wallet.`,
-    });
   };
 
   return (
@@ -94,7 +83,7 @@ export const DiscountCard = ({
 
         {/* Claim Button */}
         <Button
-          onClick={handleClaim}
+          onClick={() => onClaim(token)}
           className="w-full"
           disabled={soldOut}
         >

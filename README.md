@@ -58,7 +58,7 @@ The NFT coupon purchase button and its economic logic will be improved in upcomi
 2. **`create_campaign`** – merchant funds a vault PDA and configures parameters (discount, resale caps, categories, wallet targeting). The service fee is automatically inherited from `GlobalConfig`.  
 3. **`mint_coupon`** – coupons are minted respecting targeting (`requires_wallet`) and paying mint costs to the treasury.  
 4. **`redeem_coupon`** – after off-chain payment (Solana Pay), the contract validates the product, caps the discount (`max_discount_lamports`), transfers service fees, and records analytics.  
-5. **Secondary market** – owners can `list_coupon_for_sale`, `buy_listed_coupon`, or `transfer_coupon` P2P while respecting resale bounds (`resale_bps`).  
+5. **Secondary market** – owners can `list_coupon_for_sale`, `buy_listed_coupon`, or `transfer_coupon` P2P while respecting the configurable resale bounds (`resale_bps`). For the MVP we set `resale_bps = 5_000`, capping resale at 50% of the discount value.  
 6. **Closing** – `close_campaign_vault` returns remaining budget after expiration; `expire_coupon` cleans unused coupons.  
 7. **Observability** – events like `CouponRedeemed` and `TreasuryBalance` feed dashboards and AI agents.
 
@@ -102,13 +102,16 @@ Use `solana config set --url https://api.devnet.solana.com` (or your private RPC
    ```env
    PORT=8787
    SOLANA_RPC_URL=https://api.devnet.solana.com
+   SOLANA_CLUSTER=devnet
    PROGRAM_ID=41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr
-   PROMO_IDL_PATH=../target/idl/promoTargeting.json
+   PROMO_IDL_PATH=../target/idl/promo_targeting.json
    PLATFORM_TREASURY_ADDRESS=<platform public key>
    OPENAI_API_KEY=<your key>
    MIN_VAULT_RESERVE_LAMPORTS=5000000
    DEFAULT_MAX_RESALE_BPS=1000
    DEFAULT_SERVICE_FEE_BPS=1000
+   SOLANA_PAY_BASE_URL=https://<your-ngrok-or-domain>
+   PUBLIC_SOLANA_PAY_BASE_URL=https://<your-ngrok-or-domain>
    RPC_MAX_RETRIES=5
    RPC_RETRY_DELAY_MS=1000
    ```
@@ -120,7 +123,7 @@ Use `solana config set --url https://api.devnet.solana.com` (or your private RPC
    ```
 The server reads `merchant-keypair.json`, initializes an Anchor `BorshCoder` from the IDL, and exposes:
 
-- `POST /api/create-campaign` – creates an on-chain campaign + vault.  
+- `POST /api/create-campaign` – creates an on-chain campaign + vault (response includes `campaignPda`, `vaultPda`, and the signature so downstream flows like abandoned-cart automation can immediately mint coupons).  
 - `POST /api/mint-coupon` – mints a coupon for a recipient.  
 - `POST /api/abandoned-cart-coupon` – automated 10% abandoned-cart flow.  
 - `GET /api/campaign/:address`, `GET /api/campaigns` – account reads via the IDL.  
@@ -128,6 +131,8 @@ The server reads `merchant-keypair.json`, initializes an Anchor `BorshCoder` fro
 - `POST /api/ai-campaign-advisor` – turns natural language into structured proposals (OpenAI).  
 - `POST /api/solana-pay/create-session` & `GET /api/solana-pay/status/:reference` – manage Solana Pay sessions.  
 - `POST /api/mint-and-listing` (see code) – supports the secondary marketplace.
+
+`SOLANA_PAY_BASE_URL` (falling back to request headers or localhost) defines the HTTPS endpoint wallets hit for transaction-request flows. When exposing the server through ngrok, point both `SOLANA_PAY_BASE_URL` and `PUBLIC_SOLANA_PAY_BASE_URL` to the public URL so wallets such as Solflare or Phantom can fetch `/api/solana-pay/tx-request`.
 
 ### Platform Fees & Global Config
 
@@ -154,6 +159,16 @@ The server reads `merchant-keypair.json`, initializes an Anchor `BorshCoder` fro
 - `/` PromOps dashboard: metrics, on-chain table, AI assistant (`AICampaignAssistant`) reading campaigns + shopper context.  
 - `/ecommerce` Demo store: cart simulation, Solana Pay integration, `GET /api/coupons/:wallet`, abandoned-cart offers. Shopper context is persisted to `localStorage` and powers the dashboard.  
 - `/marketplace` Coupon marketplace: browse/list/redeem secondary coupons.
+
+### Solana Pay transaction-request flow
+
+`frontend/src/components/ecommerce/SolanaPayModal.tsx` requests a session via `POST /api/solana-pay/create-session` with `mode="transaction-request"`. The server:
+
+1. Validates optional coupons against the order (ownership, expiry, resale state).  
+2. Stores an in-memory session keyed by a generated `reference`.  
+3. Returns a `solana:https%3A%2F%2F.../api/solana-pay/tx-request?...` URL that wallets consume.
+
+Wallets call `GET /api/solana-pay/tx-request` for provider metadata and `POST /api/solana-pay/tx-request` with `{ account }`. The server builds an unsigned transaction that includes `redeem_coupon` (when applicable) plus a `SystemProgram.transfer` tagged with the reference before returning it for signing/broadcasting. The frontend polls `GET /api/solana-pay/status/:reference` until it observes the confirmed transfer, upon which it clears the cart and dispatches the `promo-targeting:coupon-updated` event.
 
 ### 4. Helpful scripts
 

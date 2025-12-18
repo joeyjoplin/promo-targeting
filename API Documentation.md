@@ -130,7 +130,9 @@ The endpoint automatically:
 ```json
 {
   "success": true,
+  "message": "Your campaign has been created on Solana devnet.",
   "signature": "...",
+  "merchantAddress": "...",
   "campaignPda": "...",
   "vaultPda": "...",
   "configPda": "...",
@@ -201,6 +203,8 @@ The frontend should deserialize, have the owning wallet sign, and broadcast via 
 
 ### POST `/api/solana-pay/create-session`
 Creates a payment session for Solana Pay (either transfer or transaction request modes) and optionally validates a coupon for the order.
+
+> **Base URL:** set `SOLANA_PAY_BASE_URL`/`PUBLIC_SOLANA_PAY_BASE_URL` in `ai-server/.env` to the HTTPS origin exposed to wallets (e.g., your ngrok domain). If unset, the server falls back to the incoming request headers or `http://localhost:<PORT>`.
 
 **Request body**
 ```json
@@ -306,7 +310,7 @@ Marks a listing as sold (no on-chain transfer yet).
 
 ## Development Notes
 
-1. **IDL availability:** Most endpoints require `anchor build` to generate `target/idl/promoTargeting.json`. If the IDL cannot be loaded, read/write endpoints will return `500`.
+1. **IDL availability:** Most endpoints require `anchor build` to generate `target/idl/promo_targeting.json`. If the IDL cannot be loaded, read/write endpoints will return `500`.
 2. **Funding:** The local `merchant-keypair.json` must hold enough SOL on devnet to pay rent, fees, and Solana Pay transfers.
 3. **Platform treasury:** If `PLATFORM_TREASURY_ADDRESS` is absent, the merchant public key becomes the default treasury.
 4. **Local cache:** Coupon usage (`/mark-coupon-used`) and marketplace listings are purely in-memory; restart the server to reset them.

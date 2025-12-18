@@ -1,5 +1,5 @@
 // src/pages/Marketplace.tsx
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { MarketplaceHero } from "@/components/marketplace/MarketplaceHero";
 import { DiscountCard } from "@/components/marketplace/DiscountCard";
@@ -9,10 +9,14 @@ import { useSolanaWallet } from "@/solana/useSolanaWallet";
 import type { OnChainCampaign } from "@/components/CampaignsTable";
 import { findProductByCode } from "@/data/products";
 import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import type { CouponApiItem } from "@/components/ecommerce/CouponWalletCard";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8787";
 const LAMPORTS_PER_SOL = 1_000_000_000;
+const DEFAULT_PRODUCT_IMAGE =
+  "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&h=300&fit=crop";
 
 /**
  * UI types used by the Marketplace.
@@ -29,7 +33,8 @@ export interface DiscountToken {
   label?: "New" | "Trending" | "Ending Soon";
   image: string;
   productPrice?: number; // base product price from Ecommerce catalog
-  maxDiscountValueSol?: number; // cap for resale price derived from on-chain + catalog data
+  maxResaleValueSol?: number; // cap for resale price derived from on-chain data
+  resaleBps?: number;
 }
 
 export interface SecondaryListing {
@@ -59,25 +64,31 @@ interface MintCouponResponse {
   expiration_timestamp?: number; // seconds since epoch
 }
 
-/**
- * Helper: derive Marketplace category from the on-chain campaign.
- * For now we mostly use product_code as a proxy; this can be refined later.
- */
-function deriveCategory(campaign: OnChainCampaign): string {
-  const product = findProductByCode(campaign.product_code);
-  if (!product) {
+function deriveCategoryFromProductName(
+  name?: string
+): DiscountToken["category"] {
+  if (!name) {
     return "General";
   }
 
-  const name = product.name.toLowerCase();
-  if (name.includes("coffee") || name.includes("chocolate")) {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("coffee") || normalized.includes("chocolate")) {
     return "Food & Beverage";
   }
-  if (name.includes("t-shirt") || name.includes("shirt")) {
+  if (normalized.includes("t-shirt") || normalized.includes("shirt")) {
     return "Fashion";
   }
 
   return "General";
+}
+
+/**
+ * Helper: derive Marketplace category from the on-chain campaign.
+ * For now we mostly use product_code as a proxy; this can be refined later.
+ */
+function deriveCategory(campaign: OnChainCampaign): DiscountToken["category"] {
+  const product = findProductByCode(campaign.product_code);
+  return deriveCategoryFromProductName(product?.name);
 }
 
 /**
@@ -119,33 +130,45 @@ function deriveLabel(campaign: OnChainCampaign): DiscountToken["label"] {
 function mapCampaignToDiscountToken(campaign: OnChainCampaign): DiscountToken {
   const product = findProductByCode(campaign.product_code);
 
-  const fallbackImage =
-    "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&h=300&fit=crop";
-
   const maxDiscountLamports = Number(campaign.max_discount_lamports || 0);
-  const maxDiscountByCampaign =
-    maxDiscountLamports > 0
-      ? maxDiscountLamports / LAMPORTS_PER_SOL
-      : 0;
-
   const discountBps = Number(campaign.discount_bps || 0);
+  const resaleBps = Number(campaign.resale_bps || 0);
   const discountFraction = discountBps > 0 ? discountBps / 10_000 : 0;
-  const discountValueFromProduct =
+
+  const productDiscountLamports =
     product && product.price && discountFraction > 0
-      ? product.price * discountFraction
+      ? Math.floor(
+          product.price *
+            LAMPORTS_PER_SOL *
+            discountFraction
+        )
       : 0;
 
-  let maxDiscountValueSol = maxDiscountByCampaign;
-  if (discountValueFromProduct > 0) {
-    if (maxDiscountValueSol > 0) {
-      maxDiscountValueSol = Math.min(
-        maxDiscountValueSol,
-        discountValueFromProduct
+  let effectiveDiscountLamports = maxDiscountLamports;
+  if (productDiscountLamports > 0) {
+    if (effectiveDiscountLamports > 0) {
+      effectiveDiscountLamports = Math.min(
+        effectiveDiscountLamports,
+        productDiscountLamports
       );
     } else {
-      maxDiscountValueSol = discountValueFromProduct;
+      effectiveDiscountLamports = productDiscountLamports;
     }
   }
+
+  let maxResaleLamports = effectiveDiscountLamports;
+  if (resaleBps > 0 && effectiveDiscountLamports > 0) {
+    maxResaleLamports = Math.floor(
+      (effectiveDiscountLamports * resaleBps) / 10_000
+    );
+    maxResaleLamports = Math.min(
+      maxResaleLamports,
+      effectiveDiscountLamports
+    );
+  }
+
+  const maxResaleValueSol =
+    maxResaleLamports > 0 ? maxResaleLamports / LAMPORTS_PER_SOL : 0;
 
   return {
     id: campaign.address,
@@ -157,10 +180,11 @@ function mapCampaignToDiscountToken(campaign: OnChainCampaign): DiscountToken {
     supply: campaign.minted_coupons,
     totalSupply: campaign.total_coupons,
     label: deriveLabel(campaign),
-    image: product?.image ?? fallbackImage,
+    image: product?.image ?? DEFAULT_PRODUCT_IMAGE,
     productPrice: product?.price,
-    maxDiscountValueSol:
-      maxDiscountValueSol > 0 ? maxDiscountValueSol : undefined,
+    maxResaleValueSol:
+      maxResaleValueSol > 0 ? maxResaleValueSol : undefined,
+    resaleBps,
   };
 }
 
@@ -201,6 +225,60 @@ function filterOpenAirdropCampaigns(
   );
 }
 
+function mapCouponApiToOwnedToken(
+  coupon: CouponApiItem,
+  fallbackToken?: DiscountToken
+): OwnedToken {
+  const product = coupon.product_code
+    ? findProductByCode(Number(coupon.product_code))
+    : undefined;
+
+  const discountPercent =
+    coupon.discount_bps !== undefined && coupon.discount_bps !== null
+      ? coupon.discount_bps / 100
+      : fallbackToken?.discount ?? 0;
+
+  const expirationDate =
+    coupon.expiration_timestamp && coupon.expiration_timestamp > 0
+      ? new Date(coupon.expiration_timestamp * 1000)
+          .toISOString()
+          .split("T")[0]
+      : "Not specified";
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const isExpired =
+    !!coupon.expiration_timestamp &&
+    coupon.expiration_timestamp > 0 &&
+    coupon.expiration_timestamp < nowSeconds;
+  const status: OwnedToken["status"] =
+    isExpired || coupon.is_used ? "expired" : "valid";
+
+  return {
+    id: coupon.campaign ?? coupon.address,
+    merchant: fallbackToken?.merchant ?? "Partner brand",
+    title: fallbackToken?.title ?? product?.name ?? "Discount coupon",
+    discount: discountPercent,
+    category:
+      fallbackToken?.category ??
+      deriveCategoryFromProductName(product?.name),
+    supply: fallbackToken?.supply ?? 0,
+    totalSupply: fallbackToken?.totalSupply ?? 0,
+    label: fallbackToken?.label,
+    image: fallbackToken?.image ?? product?.image ?? DEFAULT_PRODUCT_IMAGE,
+    productPrice: fallbackToken?.productPrice ?? product?.price,
+    maxResaleValueSol:
+      fallbackToken?.maxResaleValueSol ??
+      (coupon.max_discount_lamports !== undefined &&
+      coupon.max_discount_lamports !== null
+        ? coupon.max_discount_lamports / LAMPORTS_PER_SOL
+        : undefined),
+    resaleBps: fallbackToken?.resaleBps,
+    status,
+    expirationDate,
+    couponAddress: coupon.address,
+  };
+}
+
 const Marketplace = () => {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [ownedTokens, setOwnedTokens] = useState<OwnedToken[]>([]);
@@ -231,11 +309,47 @@ const Marketplace = () => {
   } = useSolanaWallet();
 
   const walletConnected = connected && !!walletAddress;
+  const dismissClaimError = () => setClaimError(null);
 
-  const shortAddress =
-    walletAddress && walletAddress.length > 8
-      ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-4)}`
-      : walletAddress ?? undefined;
+  const loadWalletCoupons = useCallback(async () => {
+    if (!walletConnected || !walletAddress) {
+      setOwnedTokens([]);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/coupons/${encodeURIComponent(walletAddress)}`
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Coupons API error ${res.status}: ${text}`);
+      }
+      const data = await res.json();
+      const coupons: CouponApiItem[] = Array.isArray(data?.coupons)
+        ? data.coupons
+        : [];
+      const mapped = coupons.map((coupon) =>
+        mapCouponApiToOwnedToken(
+          coupon,
+          coupon.campaign
+            ? airdropTokens.find((t) => t.id === coupon.campaign)
+            : undefined
+        )
+      );
+      setOwnedTokens(mapped);
+    } catch (err) {
+      console.error("[Marketplace] Failed to load coupons for wallet:", err);
+    }
+  }, [walletConnected, walletAddress, airdropTokens]);
+
+  const viewWalletFromError = () => {
+    if (walletConnected && walletAddress) {
+      loadWalletCoupons();
+    }
+    setShowWalletModal(true);
+    setClaimError(null);
+  };
 
   /**
    * Fetch on-chain campaigns from the AI server
@@ -302,9 +416,6 @@ const Marketplace = () => {
 
       const backendListings: BackendListing[] = data.listings;
 
-      const fallbackImage =
-        "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&h=300&fit=crop";
-
       const mapped: SecondaryListing[] = backendListings.map((l) => {
         // Try to find an existing DiscountToken for this campaign
         const baseToken =
@@ -316,7 +427,7 @@ const Marketplace = () => {
             category: "General",
             supply: 0,
             totalSupply: 0,
-            image: fallbackImage,
+            image: DEFAULT_PRODUCT_IMAGE,
             productPrice: 0,
           };
 
@@ -341,6 +452,10 @@ const Marketplace = () => {
       setLoadingSecondary(false);
     }
   };
+
+  useEffect(() => {
+    loadWalletCoupons();
+  }, [loadWalletCoupons]);
 
   useEffect(() => {
     fetchAirdropTokens();
@@ -374,7 +489,6 @@ const Marketplace = () => {
     const alreadyOwned = ownedTokens.some((t) => t.id === token.id);
     if (alreadyOwned) {
       setClaimError("You have already claimed this discount token.");
-      setShowWalletModal(true);
       return;
     }
 
@@ -395,7 +509,16 @@ const Marketplace = () => {
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Mint API error: ${res.status} - ${text}`);
+        let serverMessage = text;
+        try {
+          const parsed = JSON.parse(text);
+          serverMessage = parsed.error || parsed.message || serverMessage;
+        } catch {
+          // text was not JSON, keep as-is
+        }
+        throw new Error(
+          serverMessage || `Mint API error: ${res.status}`
+        );
       }
 
       const data: MintCouponResponse = await res.json();
@@ -419,6 +542,10 @@ const Marketplace = () => {
       // 1) Update local wallet view
       setOwnedTokens((prev) => [...prev, newToken]);
       setShowWalletModal(true);
+      toast({
+        title: "Token claimed!",
+        description: `${token.title} has been added to your wallet.`,
+      });
 
       // 2) Optimistically update local supply in the Marketplace grid
       setAirdropTokens((prev) =>
@@ -431,13 +558,21 @@ const Marketplace = () => {
           .filter((t) => t.supply < t.totalSupply)
       );
 
+      await loadWalletCoupons();
+
       // 3) (Optional) If you prefer to re-sync from backend instead of optimistic update:
       // await fetchAirdropTokens();
     } catch (err: any) {
       console.error("[Marketplace] Failed to mint coupon:", err);
-      setClaimError(
-        err.message || "Failed to claim discount token. Please try again."
-      );
+      const rawMessage =
+        err?.message ||
+        "Failed to claim discount token. Please try again.";
+      const normalizedMessage = rawMessage
+        .toLowerCase()
+        .includes("already")
+        ? "You have already claimed this discount token."
+        : rawMessage;
+      setClaimError(normalizedMessage);
     } finally {
       setClaimingTokenId(null);
     }
@@ -461,11 +596,17 @@ const Marketplace = () => {
       );
     }
 
+    const resaleFraction =
+      token.resaleBps && token.resaleBps > 0
+        ? token.resaleBps / 10_000
+        : 0;
     const computedMaxPrice =
-      (token.maxDiscountValueSol && token.maxDiscountValueSol > 0
-        ? token.maxDiscountValueSol
-        : token.productPrice && token.discount
-        ? token.productPrice * (token.discount / 100)
+      (token.maxResaleValueSol && token.maxResaleValueSol > 0
+        ? token.maxResaleValueSol
+        : token.productPrice &&
+          token.discount &&
+          resaleFraction > 0
+        ? token.productPrice * (token.discount / 100) * resaleFraction
         : null) ?? null;
 
     if (
@@ -473,7 +614,7 @@ const Marketplace = () => {
       params.price > computedMaxPrice + 1e-9
     ) {
       throw new Error(
-        `Listing price exceeds the max discount value (${computedMaxPrice.toFixed(
+        `Listing price exceeds the resale cap (${computedMaxPrice.toFixed(
           3
         )} SOL).`
       );
@@ -547,9 +688,6 @@ const Marketplace = () => {
                 Claiming discount token…
               </div>
             )}
-            {claimError && !claimingTokenId && (
-              <div className="text-xs text-destructive">{claimError}</div>
-            )}
           </div>
 
           {loadingAirdrops && (
@@ -579,17 +717,14 @@ const Marketplace = () => {
                   key={token.id}
                   token={token}
                   onClaim={handleClaimToken}
-                  walletConnected={walletConnected}
-                  connecting={connecting}
-                  onConnectWallet={connectWallet}
                 />
               ))}
             </div>
           )}
         </section>
 
-        {/* Secondary Market (real listings from backend) */}
-        <section className="mx-auto max-w-7xl px-6 py-12 border-t border-border">
+      {/* Secondary Market (real listings from backend) */}
+      <section className="mx-auto max-w-7xl px-6 py-12 border-t border-border">
           <div className="mb-8">
             <h2 className="text-2xl font-semibold text-foreground mb-2">
               Secondary Market
@@ -635,8 +770,43 @@ const Marketplace = () => {
                 ))}
               </div>
             )}
-        </section>
-      </main>
+      </section>
+    </main>
+
+    {claimError && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm px-4">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+          <div className="mb-4">
+            <p className="text-sm font-semibold text-primary uppercase tracking-wide">
+              Coupon already claimed
+            </p>
+            <h3 className="text-2xl font-semibold text-foreground mt-1">
+              You have already claimed this discount token.
+            </h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              {claimError}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={viewWalletFromError}
+            >
+              View my coupons
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={dismissClaimError}
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
 
       {/* Wallet Modal (customer view of owned discount tokens) */}
       <WalletModal

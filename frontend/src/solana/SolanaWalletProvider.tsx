@@ -104,6 +104,16 @@ const getWalletStandardApi = () => {
   return navigator.wallets ?? null;
 };
 
+const ensureLegacyProviderAliases = () => {
+  if (typeof window === "undefined") return;
+  if (window.phantom?.solana && !window.solana) {
+    window.solana = window.phantom.solana;
+  }
+  if (window.backpack?.solana && !window.solana) {
+    window.solana = window.backpack.solana;
+  }
+};
+
 const LEGACY_WALLET_NAMES: Record<string, string> = {
   Phantom: "Phantom",
   Backpack: "Backpack",
@@ -131,6 +141,7 @@ export const SolanaWalletProvider: React.FC<SolanaWalletProviderProps> = ({
 
   const detectWallets = useCallback((): UiWallet[] => {
     if (typeof window === "undefined") return [];
+    ensureLegacyProviderAliases();
     const detected: UiWallet[] = [];
 
     const standardApi = getWalletStandardApi();
@@ -171,6 +182,20 @@ export const SolanaWalletProvider: React.FC<SolanaWalletProviderProps> = ({
 
   useEffect(() => {
     setWallets(detectWallets());
+  }, [detectWallets]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const refresh = () => {
+      ensureLegacyProviderAliases();
+      setWallets(detectWallets());
+    };
+    window.addEventListener("phantom#initialized", refresh, { once: true });
+    window.addEventListener("load", refresh);
+    return () => {
+      window.removeEventListener("phantom#initialized", refresh);
+      window.removeEventListener("load", refresh);
+    };
   }, [detectWallets]);
 
   useEffect(() => {

@@ -98,8 +98,8 @@ const clampBpsInput = (value, fallback) => {
 };
 
 const DEFAULT_MAX_RESALE_BPS = clampBpsInput(
-  process.env.DEFAULT_MAX_RESALE_BPS ?? 1_000,
-  1_000
+  process.env.DEFAULT_MAX_RESALE_BPS ?? 5_000,
+  5_000
 );
 const DEFAULT_SERVICE_FEE_BPS = clampBpsInput(
   process.env.DEFAULT_SERVICE_FEE_BPS ?? 1_000,
@@ -131,8 +131,8 @@ const PROGRAM_ID_STRING =
   process.env.PROGRAM_ID || "41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr";
 const PROGRAM_ID = new PublicKey(PROGRAM_ID_STRING);
 
-// Default IDL location is inside ai-server/idl/promoTargeting.json
-const DEFAULT_IDL_PATH = path.join(__dirname, "idl", "promoTargeting.json");
+// Default IDL location is inside ai-server/idl/promo_targeting.json
+const DEFAULT_IDL_PATH = path.join(__dirname, "idl", "promo_targeting.json");
 
 /**
  * IDL path resolution:
@@ -140,7 +140,7 @@ const DEFAULT_IDL_PATH = path.join(__dirname, "idl", "promoTargeting.json");
  * - Otherwise, we fall back to DEFAULT_IDL_PATH.
  *
  * Example .env override for local dev:
- *   PROMO_IDL_PATH=../target/idl/promoTargeting.json
+ *   PROMO_IDL_PATH=../target/idl/promo_targeting.json
  */
 const IDL_PATH = process.env.PROMO_IDL_PATH
   ? path.resolve(__dirname, process.env.PROMO_IDL_PATH)
@@ -1322,7 +1322,7 @@ app.post("/api/ai-campaign-advisor", async (req, res) => {
               "}\n\n" +
               "The JSON must not contain any comments or trailing commas. " +
               "Infer missing technical parameters from the merchant goal, risk tolerance and metrics. " +
-              "If the user mentions Black Friday or a specific period, set a matching expiration_timestamp and period_label.",
+              "If the user mentions Black Friday or a specific date, set a matching expiration_timestamp and period_label.",
           },
           {
             role: "user",
@@ -1636,6 +1636,7 @@ app.get("/api/campaigns", async (_req, res) => {
 
 // In-memory set of locally "used" coupons (until we implement full on-chain redemption from the shopper wallet)
 const locallyUsedCoupons = new Set();
+const locallyListedCoupons = new Set();
 
 // -----------------------------------------------------------------------------
 // Read-only endpoint: list Coupon accounts for a given recipient wallet
@@ -1818,14 +1819,26 @@ app.get("/api/coupons/:walletAddress", async (req, res) => {
           ["is_used", "used", "redeemed"],
           false
         );
+        const isListed = pickBool(
+          decodedCoupon,
+          ["listed", "is_listed"],
+          false
+        );
 
         const isLocallyUsed = locallyUsedCoupons.has(couponAddress);
-        const effectiveIsUsed = isUsedOnChain || isLocallyUsed;
+        const isLocallyListed = locallyListedCoupons.has(couponAddress);
+        const effectiveIsListed = isListed || isLocallyListed;
+        const effectiveIsUsed = isUsedOnChain || isLocallyUsed || effectiveIsListed;
 
         const isExpired =
           !!expirationTimestamp &&
           expirationTimestamp > 0 &&
           expirationTimestamp < nowSeconds;
+
+        // Skip coupons that are listed for sale (owner loses access while listed).
+        if (effectiveIsListed) {
+          continue;
+        }
 
         // If it's used (on-chain or locally) or expired, we still return it,
         // but the frontend can decide to hide or just show as disabled.
@@ -1839,6 +1852,7 @@ app.get("/api/coupons/:walletAddress", async (req, res) => {
           category_code: categoryCode,
           product_code: productCode,
           is_used: effectiveIsUsed || isExpired,
+          is_listed: effectiveIsListed,
         });
       } catch (_e) {
         continue;
@@ -2235,15 +2249,12 @@ app.post("/api/create-campaign", async (req, res) => {
 
     res.json({
       success: true,
-      message: "On-chain campaign created successfully on devnet.",
+      message: "Your campaign has been created on Solana devnet.",
       merchantAddress: merchant.publicKey.toBase58(),
-      customerWallet: walletAddress || null,
-      signature,
-      configPda: configPda.toBase58(),
       campaignPda: campaignPda.toBase58(),
       vaultPda: vaultPda.toBase58(),
-      rpcUrl: SOLANA_RPC_URL,
-      usedProposal: !!hasProposal,
+      signature,
+      configPda: configPda.toBase58(),
     });
   } catch (err) {
     console.error("[create-campaign error]", err);
@@ -2382,6 +2393,31 @@ app.post("/api/mint-coupon", async (req, res) => {
       return res.status(400).json({
         error:
           "No coupons left in this campaign (minted_coupons >= total_coupons).",
+      });
+    }
+
+    // Prevent wallets from receiving more than one coupon per campaign.
+    const existingCoupons = await connection.getProgramAccounts(PROGRAM_ID, {
+      filters: [
+        {
+          memcmp: {
+            offset: 8, // discriminator
+            bytes: campaignPda.toBase58(),
+          },
+        },
+        {
+          memcmp: {
+            offset: 8 + 32 + 8, // discriminator + campaign + coupon_index
+            bytes: recipientPubkey.toBase58(),
+          },
+        },
+      ],
+    });
+
+    if (existingCoupons.length > 0) {
+      return res.status(400).json({
+        error:
+          "This wallet already has a coupon for this campaign. Secondary wallets must buy from the marketplace.",
       });
     }
 
@@ -4024,10 +4060,11 @@ app.post("/api/secondary/list", async (req, res) => {
       0
     );
 
-    const maxDiscountByCampaign =
-      maxDiscountLamports > 0
-        ? maxDiscountLamports / LAMPORTS_PER_SOL
-        : 0;
+    const resaleBps = getFirstNumeric(
+      decodedCampaign,
+      ["resale_bps", "resaleBps"],
+      0
+    );
 
     const productPriceSol = Object.prototype.hasOwnProperty.call(
       PRODUCT_CODE_PRICE_SOL,
@@ -4036,30 +4073,48 @@ app.post("/api/secondary/list", async (req, res) => {
       ? PRODUCT_CODE_PRICE_SOL[productCode]
       : 0;
     const discountFraction = discountBps > 0 ? discountBps / 10_000 : 0;
-    const maxDiscountByProduct =
+    const productDiscountLamports =
       productPriceSol > 0 && discountFraction > 0
-        ? productPriceSol * discountFraction
+        ? Math.floor(
+            productPriceSol *
+              LAMPORTS_PER_SOL *
+              discountFraction
+          )
         : 0;
 
-    let maxAllowedPriceSol = maxDiscountByCampaign;
-    if (maxDiscountByProduct > 0) {
-      if (maxAllowedPriceSol > 0) {
-        maxAllowedPriceSol = Math.min(
-          maxAllowedPriceSol,
-          maxDiscountByProduct
+    let effectiveDiscountLamports = maxDiscountLamports;
+    if (productDiscountLamports > 0) {
+      if (effectiveDiscountLamports > 0) {
+        effectiveDiscountLamports = Math.min(
+          effectiveDiscountLamports,
+          productDiscountLamports
         );
       } else {
-        maxAllowedPriceSol = maxDiscountByProduct;
+        effectiveDiscountLamports = productDiscountLamports;
       }
     }
 
+    let maxResaleLamports = effectiveDiscountLamports;
+    if (resaleBps > 0 && effectiveDiscountLamports > 0) {
+      maxResaleLamports = Math.floor(
+        (effectiveDiscountLamports * resaleBps) / 10_000
+      );
+      maxResaleLamports = Math.min(
+        maxResaleLamports,
+        effectiveDiscountLamports
+      );
+    }
+
+    const maxResaleValueSol =
+      maxResaleLamports > 0 ? maxResaleLamports / LAMPORTS_PER_SOL : 0;
+
     if (
-      maxAllowedPriceSol > 0 &&
-      numericPrice > maxAllowedPriceSol + 1e-9
+      maxResaleValueSol > 0 &&
+      numericPrice > maxResaleValueSol + 1e-9
     ) {
       return res.status(400).json({
-        error: `Listing price exceeds the max allowed discount (${maxAllowedPriceSol} SOL).`,
-        maxAllowedPriceSol,
+        error: `Listing price exceeds the resale cap (${maxResaleValueSol} SOL).`,
+        maxAllowedPriceSol: maxResaleValueSol,
       });
     }
 
@@ -4088,6 +4143,7 @@ app.post("/api/secondary/list", async (req, res) => {
     };
 
     secondaryListings.push(listing);
+    locallyListedCoupons.add(couponAddress);
     console.log("[secondary] Created listing:", listing);
 
     return res.status(201).json({ listing });
@@ -4132,6 +4188,7 @@ app.post("/api/secondary/buy", async (req, res) => {
     listing.status = "sold";
     listing.buyerWallet = buyerWallet;
     listing.updatedAt = Date.now();
+    locallyListedCoupons.delete(listing.couponAddress);
 
     console.log(
       "[secondary] Listing sold:",

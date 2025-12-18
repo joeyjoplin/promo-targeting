@@ -268,19 +268,14 @@ export const AICampaignAssistant: React.FC<AICampaignAssistantProps> = ({
         id: `assistant-create-${Date.now()}`,
         role: "assistant",
         content:
-          "Your campaign has been created on Solana devnet.\n\n" +
-          `- Merchant (server): \`${data.merchantAddress}\`\n` +
-          `- Campaign PDA: \`${data.campaignPda}\`\n` +
-          `- Vault PDA: \`${data.vaultPda}\`\n` +
-          `- Tx signature: \`${data.signature}\`\n\n` +
-          "You can inspect it in Solana Explorer. The dashboard will now include this campaign in the Active Campaigns table.",
+          "Your campaign has been created on Solana devnet.",
         timestamp: new Date().toISOString(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
       if (onCampaignCreated) {
-        onCampaignCreated(data.campaignPda as string);
+        onCampaignCreated();
       }
     } catch (err: any) {
       console.error("Error creating on-chain campaign:", err);

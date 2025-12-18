@@ -1,0 +1,1229 @@
+{
+  "address": "41eti7CsZBWD1QYdor2RnxmqzsaNGpRQCkJQZqX2JEKr",
+  "metadata": {
+    "name": "promo_targeting",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "buy_listed_coupon",
+      "discriminator": [
+        97,
+        206,
+        133,
+        142,
+        69,
+        250,
+        41,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "campaign",
+          "writable": true,
+          "relations": [
+            "coupon"
+          ]
+        },
+        {
+          "name": "coupon",
+          "writable": true
+        },
+        {
+          "name": "seller",
+          "docs": [
+            "its public key against `coupon.owner` and receive lamports.",
+            "No PDA derivation or data deserialization is required."
+          ],
+          "writable": true
+        },
+        {
+          "name": "buyer",
+          "docs": [
+            "Buyer paying SOL and receiving the coupon.",
+            "Must be mutable because lamports are debited in the CPI transfer."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "check_treasury_balance",
+      "discriminator": [
+        185,
+        237,
+        4,
+        229,
+        126,
+        66,
+        55,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "platform_treasury"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_campaign_vault",
+      "discriminator": [
+        178,
+        231,
+        231,
+        5,
+        59,
+        68,
+        52,
+        64
+      ],
+      "accounts": [
+        {
+          "name": "campaign",
+          "docs": [
+            "Campaign associated with the vault. Kept alive for history/analytics."
+          ]
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "Vault to be closed. Remaining lamports go to `merchant`."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "campaign"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant",
+          "docs": [
+            "Merchant receiving the remaining lamports from the vault."
+          ],
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "campaign"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_campaign",
+      "discriminator": [
+        111,
+        131,
+        187,
+        98,
+        160,
+        193,
+        114,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "docs": [
+            "Global config – defines policy for campaigns (including max_resale_bps)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "campaign",
+          "docs": [
+            "Campaign account PDA. One PDA per (merchant, campaign_id)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  109,
+                  112,
+                  97,
+                  105,
+                  103,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant"
+              },
+              {
+                "kind": "arg",
+                "path": "campaign_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "Vault PDA that holds the campaign budget and accounting."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "campaign"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant",
+          "docs": [
+            "Merchant funding the campaign."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "campaign_id",
+          "type": "u64"
+        },
+        {
+          "name": "discount_bps",
+          "type": "u16"
+        },
+        {
+          "name": "resale_bps",
+          "type": "u16"
+        },
+        {
+          "name": "expiration_timestamp",
+          "type": "i64"
+        },
+        {
+          "name": "total_coupons",
+          "type": "u32"
+        },
+        {
+          "name": "mint_cost_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "max_discount_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "category_code",
+          "type": "u16"
+        },
+        {
+          "name": "product_code",
+          "type": "u16"
+        },
+        {
+          "name": "campaign_name",
+          "type": "string"
+        },
+        {
+          "name": "deposit_amount",
+          "type": "u64"
+        },
+        {
+          "name": "requires_wallet",
+          "type": "bool"
+        },
+        {
+          "name": "target_wallet",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "expire_coupon",
+      "discriminator": [
+        127,
+        14,
+        251,
+        143,
+        143,
+        32,
+        32,
+        157
+      ],
+      "accounts": [
+        {
+          "name": "campaign",
+          "relations": [
+            "coupon"
+          ]
+        },
+        {
+          "name": "coupon",
+          "writable": true
+        },
+        {
+          "name": "merchant",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "campaign"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_config",
+      "discriminator": [
+        208,
+        127,
+        21,
+        1,
+        194,
+        190,
+        196,
+        70
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "max_resale_bps",
+          "type": "u16"
+        },
+        {
+          "name": "service_fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "list_coupon_for_sale",
+      "discriminator": [
+        237,
+        57,
+        133,
+        26,
+        105,
+        69,
+        161,
+        74
+      ],
+      "accounts": [
+        {
+          "name": "campaign",
+          "writable": true,
+          "relations": [
+            "coupon"
+          ]
+        },
+        {
+          "name": "coupon",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "sale_price_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "mint_coupon",
+      "discriminator": [
+        190,
+        110,
+        73,
+        138,
+        8,
+        160,
+        244,
+        63
+      ],
+      "accounts": [
+        {
+          "name": "campaign",
+          "docs": [
+            "Campaign PDA for this coupon."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  109,
+                  112,
+                  97,
+                  105,
+                  103,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "merchant"
+              },
+              {
+                "kind": "arg",
+                "path": "campaign_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "Vault PDA associated with this campaign."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "campaign"
+              }
+            ]
+          }
+        },
+        {
+          "name": "coupon",
+          "docs": [
+            "Coupon PDA. One PDA per (campaign, coupon_index)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  117,
+                  112,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "campaign"
+              },
+              {
+                "kind": "arg",
+                "path": "coupon_index"
+              }
+            ]
+          }
+        },
+        {
+          "name": "merchant",
+          "docs": [
+            "Merchant paying for the account creation (rent)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "recipient"
+        },
+        {
+          "name": "platform_treasury",
+          "docs": [
+            "from the vault (mint cost and service fees)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "campaign_id",
+          "type": "u64"
+        },
+        {
+          "name": "coupon_index",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "redeem_coupon",
+      "discriminator": [
+        66,
+        181,
+        163,
+        197,
+        244,
+        189,
+        153,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "campaign",
+          "docs": [
+            "Campaign this coupon belongs to."
+          ],
+          "writable": true,
+          "relations": [
+            "coupon"
+          ]
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "Vault associated with this campaign."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "campaign"
+              }
+            ]
+          }
+        },
+        {
+          "name": "coupon",
+          "docs": [
+            "Coupon to be redeemed.",
+            "",
+            "`close = user` burns the coupon account after the instruction",
+            "completes successfully, sending the rent back to the user."
+          ],
+          "writable": true
+        },
+        {
+          "name": "user",
+          "docs": [
+            "User redeeming the coupon (must be the coupon owner)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "platform_treasury",
+          "docs": [
+            "from the vault corresponding to the service fee."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "purchase_amount",
+          "type": "u64"
+        },
+        {
+          "name": "product_code",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "transfer_coupon",
+      "discriminator": [
+        144,
+        38,
+        18,
+        1,
+        196,
+        64,
+        73,
+        74
+      ],
+      "accounts": [
+        {
+          "name": "coupon",
+          "docs": [
+            "Coupon whose ownership is being transferred."
+          ],
+          "writable": true
+        },
+        {
+          "name": "current_owner",
+          "docs": [
+            "Current owner of the coupon (must sign the transfer)."
+          ],
+          "signer": true
+        },
+        {
+          "name": "new_owner"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "upgrade_config",
+      "discriminator": [
+        129,
+        185,
+        25,
+        221,
+        96,
+        63,
+        251,
+        97
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "max_resale_bps",
+          "type": "u16"
+        },
+        {
+          "name": "service_fee_bps",
+          "type": "u16"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Campaign",
+      "discriminator": [
+        50,
+        40,
+        49,
+        11,
+        157,
+        220,
+        229,
+        192
+      ]
+    },
+    {
+      "name": "Coupon",
+      "discriminator": [
+        24,
+        230,
+        224,
+        210,
+        200,
+        206,
+        79,
+        57
+      ]
+    },
+    {
+      "name": "GlobalConfig",
+      "discriminator": [
+        149,
+        8,
+        156,
+        202,
+        160,
+        252,
+        176,
+        217
+      ]
+    },
+    {
+      "name": "Vault",
+      "discriminator": [
+        211,
+        8,
+        232,
+        43,
+        2,
+        152,
+        117,
+        119
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CouponRedeemed",
+      "discriminator": [
+        123,
+        241,
+        185,
+        217,
+        117,
+        208,
+        200,
+        89
+      ]
+    },
+    {
+      "name": "TreasuryBalance",
+      "discriminator": [
+        135,
+        81,
+        89,
+        226,
+        2,
+        108,
+        143,
+        172
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidCampaignState",
+      "msg": "Invalid campaign state"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidCouponState",
+      "msg": "Invalid coupon state"
+    },
+    {
+      "code": 6002,
+      "name": "CouponAlreadyUsed",
+      "msg": "Coupon already used"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidCouponCampaign",
+      "msg": "Invalid coupon campaign reference"
+    },
+    {
+      "code": 6004,
+      "name": "NotCouponOwner",
+      "msg": "Signer is not the coupon owner"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidCampaignId",
+      "msg": "Invalid campaign id"
+    },
+    {
+      "code": 6006,
+      "name": "InsufficientVaultBalance",
+      "msg": "Insufficient vault balance"
+    },
+    {
+      "code": 6007,
+      "name": "NotMerchant",
+      "msg": "Signer is not the merchant"
+    },
+    {
+      "code": 6008,
+      "name": "CampaignNotExpired",
+      "msg": "Campaign is not expired yet"
+    },
+    {
+      "code": 6009,
+      "name": "NotAdmin",
+      "msg": "Signer is not the admin"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidConfigAccount",
+      "msg": "Invalid config account data"
+    },
+    {
+      "code": 6011,
+      "name": "CouponListed",
+      "msg": "Coupon is currently listed"
+    },
+    {
+      "code": 6012,
+      "name": "CouponAlreadyListed",
+      "msg": "Coupon is already listed"
+    },
+    {
+      "code": 6013,
+      "name": "CouponNotListed",
+      "msg": "Coupon is not listed"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidResalePrice",
+      "msg": "Invalid resale price"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidBuyer",
+      "msg": "Invalid buyer for this coupon"
+    },
+    {
+      "code": 6016,
+      "name": "TargetWalletRequired",
+      "msg": "Target wallet is required for this campaign type"
+    },
+    {
+      "code": 6017,
+      "name": "NotEligibleForCampaign",
+      "msg": "User is not eligible for this campaign"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidProductForCoupon",
+      "msg": "Invalid product for this coupon"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidBps",
+      "msg": "Invalid bps value"
+    },
+    {
+      "code": 6020,
+      "name": "Overflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6021,
+      "name": "InvalidTotalCoupons",
+      "msg": "Invalid total coupons value"
+    },
+    {
+      "code": 6022,
+      "name": "InvalidMintCost",
+      "msg": "Invalid mint cost"
+    },
+    {
+      "code": 6023,
+      "name": "InvalidMaxDiscount",
+      "msg": "Invalid max discount"
+    },
+    {
+      "code": 6024,
+      "name": "InvalidDepositAmount",
+      "msg": "Invalid deposit amount"
+    },
+    {
+      "code": 6025,
+      "name": "NameTooLong",
+      "msg": "Campaign name is too long"
+    },
+    {
+      "code": 6026,
+      "name": "NoCouponsLeft",
+      "msg": "No coupons left for this campaign"
+    },
+    {
+      "code": 6027,
+      "name": "CampaignExpired",
+      "msg": "Campaign has already expired"
+    }
+  ],
+  "types": [
+    {
+      "name": "Campaign",
+      "docs": [
+        "Campaign account: stores all campaign parameters and summary stats."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "campaign_id",
+            "type": "u64"
+          },
+          {
+            "name": "discount_bps",
+            "type": "u16"
+          },
+          {
+            "name": "service_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "resale_bps",
+            "type": "u16"
+          },
+          {
+            "name": "expiration_timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "total_coupons",
+            "type": "u32"
+          },
+          {
+            "name": "used_coupons",
+            "type": "u32"
+          },
+          {
+            "name": "minted_coupons",
+            "type": "u32"
+          },
+          {
+            "name": "mint_cost_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "max_discount_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "category_code",
+            "type": "u16"
+          },
+          {
+            "name": "product_code",
+            "type": "u16"
+          },
+          {
+            "name": "campaign_name",
+            "type": "string"
+          },
+          {
+            "name": "requires_wallet",
+            "type": "bool"
+          },
+          {
+            "name": "target_wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_purchase_amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_discount_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "last_redeem_timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Coupon",
+      "docs": [
+        "Coupon account: represents a single \"logical NFT\" coupon",
+        "plus listing data for the secondary market."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "campaign",
+            "type": "pubkey"
+          },
+          {
+            "name": "coupon_index",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "used",
+            "type": "bool"
+          },
+          {
+            "name": "listed",
+            "type": "bool"
+          },
+          {
+            "name": "sale_price_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CouponRedeemed",
+      "docs": [
+        "Event emitted whenever a coupon is redeemed, enabling off-chain analytics."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "campaign",
+            "type": "pubkey"
+          },
+          {
+            "name": "campaign_id",
+            "type": "u64"
+          },
+          {
+            "name": "category_code",
+            "type": "u16"
+          },
+          {
+            "name": "product_code",
+            "type": "u16"
+          },
+          {
+            "name": "coupon_index",
+            "type": "u64"
+          },
+          {
+            "name": "purchase_amount",
+            "type": "u64"
+          },
+          {
+            "name": "discount_value",
+            "type": "u64"
+          },
+          {
+            "name": "service_fee_value",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GlobalConfig",
+      "docs": [
+        "Global configuration for the protocol."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "max_resale_bps",
+            "type": "u16"
+          },
+          {
+            "name": "service_fee_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TreasuryBalance",
+      "docs": [
+        "Event emitted when checking platform treasury balance."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "platform_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Vault",
+      "docs": [
+        "Vault account: holds the campaign budget and accounting."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "campaign",
+            "type": "pubkey"
+          },
+          {
+            "name": "merchant",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "total_deposit",
+            "type": "u64"
+          },
+          {
+            "name": "total_mint_spent",
+            "type": "u64"
+          },
+          {
+            "name": "total_service_spent",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
