@@ -6,6 +6,7 @@ PromOps is an open on-chain marketing protocol designed to maximize ROI for loya
 
 Frontend: https://promo-targeting.vercel.app/ </br>
 Server: https://promo-targeting.onrender.com </br>
+Pitch: https://youtu.be/MX2Cec6lcqA </br>
 
 ### Getting Started (Demo Flow) 
 1. Open the E-Commerce menu and connect your crypto wallet.
